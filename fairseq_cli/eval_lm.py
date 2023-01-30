@@ -16,6 +16,7 @@ import sys
 from argparse import Namespace
 from textwrap import indent
 from typing import Iterable, List, Optional
+from tqdm.auto import tqdm
 
 import torch
 import fairseq
@@ -111,8 +112,8 @@ def eval_lm(
 
     word_stats = dict()
     first_batch = None
-
-    for i, sample in enumerate(batch_iterator):
+    pbar = tqdm(enumerate(batch_iterator))
+    for i, sample in pbar:
         if max_valid_steps is not None and i > max_valid_steps:
             break
         is_dummy_batch = False
@@ -138,7 +139,7 @@ def eval_lm(
 
         for i, hypos_i in enumerate(hypos):
             hypo = hypos_i[0]
-            sample_id = sample["id"][i]
+            # sample_id = sample["id"][i]
 
             tokens = hypo["tokens"]
             tgt_len = tokens.numel()
@@ -166,43 +167,45 @@ def eval_lm(
                 pos_scores = pos_scores[(~inf_scores).nonzero()]
             score_sum += pos_scores.sum().cpu()
             count += pos_scores.numel() - skipped_toks
+            running_loss = get_aggregated_loss(score_sum, count)
+            running_ppl = 2 ** running_loss
+            pbar.set_description(f'ppl: {running_ppl}')
+            # if output_word_probs or output_word_stats:
+            #     w = ""
+            #     word_prob = []
+            #     is_bpe = False
+            #     for i in range(len(tokens)):
+            #         w_ind = tokens[i].item()
+            #         w += source_dictionary[w_ind]
+            #         if bpe_toks is not None and w_ind in bpe_toks:
+            #             w = w[:-bpe_len]
+            #             is_bpe = True
+            #         else:
+            #             word_prob.append((w, pos_scores[i].item()))
 
-            if output_word_probs or output_word_stats:
-                w = ""
-                word_prob = []
-                is_bpe = False
-                for i in range(len(tokens)):
-                    w_ind = tokens[i].item()
-                    w += source_dictionary[w_ind]
-                    if bpe_toks is not None and w_ind in bpe_toks:
-                        w = w[:-bpe_len]
-                        is_bpe = True
-                    else:
-                        word_prob.append((w, pos_scores[i].item()))
+            #             next_prob = None
+            #             ind = i + 1
+            #             while ind < len(tokens):
+            #                 if pos_scores[ind].item() != 0:
+            #                     next_prob = pos_scores[ind]
+            #                     break
+            #                 ind += 1
 
-                        next_prob = None
-                        ind = i + 1
-                        while ind < len(tokens):
-                            if pos_scores[ind].item() != 0:
-                                next_prob = pos_scores[ind]
-                                break
-                            ind += 1
-
-                        word_stats.setdefault(w, WordStat(w, is_bpe)).add(
-                            pos_scores[i].item(), next_prob
-                        )
-                        is_bpe = False
-                        w = ""
-                if output_word_probs:
-                    logger.info(
-                        str(int(sample_id))
-                        + " "
-                        + (
-                            "\t".join(
-                                "{} [{:2f}]".format(x[0], x[1]) for x in word_prob
-                            )
-                        )
-                    )
+            #             word_stats.setdefault(w, WordStat(w, is_bpe)).add(
+            #                 pos_scores[i].item(), next_prob
+            #             )
+            #             is_bpe = False
+            #             w = ""
+            #     if output_word_probs:
+            #         logger.info(
+            #             str(int(sample_id))
+            #             + " "
+            #             + (
+            #                 "\t".join(
+            #                     "{} [{:2f}]".format(x[0], x[1]) for x in word_prob
+            #                 )
+            #             )
+            #         )
 
     avg_nll_loss = get_aggregated_loss(score_sum, count)  # convert to base 2
     tokens, gpu_seconds_taken, avg_time = get_aggregated_timer_stats(gen_timer)
@@ -284,7 +287,7 @@ class WordStat(object):
 
 def eval_dataset(cfg: DictConfig, eval_split, task, models, start_time):
     dataset = task.dataset(eval_split)
-    logger.info(f"{cfg.task.data} {eval_split} {len(dataset):,} examples")
+    # logger.info(f"{cfg.task.data} {eval_split} {len(dataset):,} examples")
     num_shards = max(
         cfg.dataset.num_shards,
         cfg.distributed_training.distributed_world_size,
@@ -293,19 +296,44 @@ def eval_dataset(cfg: DictConfig, eval_split, task, models, start_time):
         cfg.dataset.shard_id,
         cfg.distributed_training.distributed_rank,
     )
-    itr = task.eval_lm_dataloader(
-        dataset=dataset,
-        max_tokens=cfg.dataset.max_tokens or 36000,
-        batch_size=cfg.dataset.batch_size,
-        max_positions=utils.resolve_max_positions(
-            *[model.max_positions() for model in models]
-        ),
-        num_shards=num_shards,
-        shard_id=shard_id,
-        num_workers=cfg.dataset.num_workers,
-        data_buffer_size=cfg.dataset.data_buffer_size,
-        context_window=cfg.eval_lm.context_window,
-    )
+
+    itr = task.get_batch_iterator(
+            dataset=task.dataset(eval_split),
+            max_tokens=cfg.dataset.max_tokens_valid,
+            max_sentences=cfg.dataset.batch_size_valid,
+            max_positions=utils.resolve_max_positions(
+                task.max_positions(),
+                *[model.max_positions() for model in models],
+            ),
+            ignore_invalid_inputs=cfg.dataset.skip_invalid_size_inputs_valid_test,
+            required_batch_size_multiple=cfg.dataset.required_batch_size_multiple,
+            seed=cfg.common.seed,
+            num_shards=1,
+            shard_id=0,
+            num_workers=cfg.dataset.num_workers_valid,
+            # always pass a fixed "epoch" to keep validation data consistent
+            # across training epochs
+            epoch=1,
+            data_buffer_size=cfg.dataset.data_buffer_size,
+            disable_iterator_cache=True,
+            skip_remainder_batch=False,
+        ).next_epoch_itr(
+                shuffle=False, set_dataset_epoch=False  # use a fixed valid set
+                )
+
+    # itr = task.eval_lm_dataloader(
+    #     dataset=dataset,
+    #     max_tokens=cfg.dataset.max_tokens or 36000,
+    #     batch_size=cfg.dataset.batch_size,
+    #     max_positions=utils.resolve_max_positions(
+    #         *[model.max_positions() for model in models]
+    #     ),
+    #     num_shards=num_shards,
+    #     shard_id=shard_id,
+    #     num_workers=cfg.dataset.num_workers,
+    #     data_buffer_size=cfg.dataset.data_buffer_size,
+    #     context_window=cfg.eval_lm.context_window,
+    # )
     itr = progress_bar.progress_bar(
         itr,
         log_format=cfg.common.log_format,
@@ -372,7 +400,7 @@ def main(cfg: DictConfig, **unused_kwargs):
         cfg.checkpoint.checkpoint_suffix = f"-rank-{rank}"
         is_moe = True
         # This is required for making all_to_all work on same sized tensors across gpus.
-        cfg['task']['pad_to_fixed_length'] = True
+        # cfg['task']['pad_to_fixed_length'] = True
     else:
         is_moe = False
 

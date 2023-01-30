@@ -558,6 +558,12 @@ class CheckpointConfig(FairseqDataclass):
             "help": "finetune from a pretrained model; note that meters and lr scheduler will be reset"
         },
     )
+    finetune_from_opt: bool = field(
+        default=False,
+        metadata={
+            "help": "finetune from a pretrained model; note that meters and lr scheduler will be reset"
+        },
+    )
     reset_dataloader: bool = field(
         default=False,
         metadata={

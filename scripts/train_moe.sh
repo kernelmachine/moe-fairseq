@@ -28,8 +28,8 @@ if [ $OPT_INIT == "init_opt" ]; then
         --fp16-adam-stats \
         --adam-betas '(0.9, 0.98)' \
         --clip-norm 0.0   \
-        --lr 2e-4 \
-        --batch-size 4 \
+        --lr 2e-5 \
+        --batch-size 8 \
         --update-freq 1   \
         --total-num-update 10000 \
         --max-update 10000 \
@@ -39,10 +39,7 @@ if [ $OPT_INIT == "init_opt" ]; then
         --train-subset train \
         --merges-filename /gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt \
         --vocab-filename /gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json \
-        --reset-optimizer \
-        --reset-dataloader \
-        --reset-lr-scheduler \
-        --reset-meters
+        --reset-dataloader
 else
     python -m  fairseq_cli.train \
         /gscratch/zlab/sg01/data/c4/  \

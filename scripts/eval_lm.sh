@@ -1,6 +1,6 @@
-NUM_GPUS=2
+NUM_GPUS=4
 
-MODEL_DIR='/gscratch/zlab/sg01/test_eval_2_exp/'
+MODEL_DIR='/gscratch/zlab/sg01/test_eval_4_exp/'
 
 CHECKPOINT_TO_PROCESS='checkpoint_last'
 
@@ -25,7 +25,7 @@ ln -s $SHARED_PATH ./$filename
 popd
 
 set -ux
-CUDA_VISIBLE_DEVICES=0,1 python -m fairseq_cli.eval_lm \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python -m fairseq_cli.eval_lm \
   $DATA_PATH \
   --ddp-backend c10d \
   --path $TEMP_FOLDER/$CHECKPOINT_TO_PROCESS.pt \

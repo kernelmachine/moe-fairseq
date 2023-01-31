@@ -269,7 +269,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     return extra_state, epoch_itr
 
 
-def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, initialize_moe_with_opt=True):
+def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, moe_initialize_from_opt=False):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility).
 
     If doing single-GPU training or if the checkpoint is only being loaded by at
@@ -307,17 +307,17 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is
     if is_moe and os.path.exists(shared_path):
         expert_state = moe_checkpoint_utils.load_expert_state(local_path)  # Possibly merge experts
         shared_state = torch_load_cpu(shared_path)
-        if cfg.finetune_from_opt:
-            # initialize MoE with OPT weights
-            logging.info("initializing moe with OPT model...")
-            opt_state = torch.load('/gscratch/zlab/sg01/opt/1.3b/consolidated.pt')
-            for key in shared_state['model']:                                                                                                                                            
-                if opt_state['model'].get(key) is not None:
-                    shared_state['model'][key] = opt_state['model'][key]
-            for key in expert_state['model']:
-                new_key = re.sub(f"moe_layer.experts.\d+.", '', key)
-                if opt_state['model'].get(new_key) is not None:
-                    expert_state['model'][key] = opt_state['model'][new_key]
+        # if moe_initialize_from_opt:
+        #     # initialize MoE with OPT weights
+        #     logging.info("initializing moe with OPT model...")
+        #     opt_state = torch.load('/gscratch/zlab/sg01/opt/1.3b/consolidated.pt')
+        #     for key in shared_state['model']:                                                                                                                                            
+        #         if opt_state['model'].get(key) is not None:
+        #             shared_state['model'][key] = opt_state['model'][key]
+        #     for key in expert_state['model']:
+        #         new_key = re.sub(f"moe_layer.experts.\d+.", '', key)
+        #         if opt_state['model'].get(new_key) is not None:
+        #             expert_state['model'][key] = opt_state['model'][new_key]
         state = moe_checkpoint_utils.merge_expert_and_shared_state(expert_state, shared_state)
     else:
         state = torch_load_cpu(local_path)

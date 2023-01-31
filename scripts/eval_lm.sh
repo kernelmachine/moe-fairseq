@@ -1,6 +1,6 @@
-NUM_GPUS=1
+NUM_GPUS=2
 
-MODEL_DIR='/gscratch/zlab/sg01/opt_ft/moe_1_expert/'
+MODEL_DIR='/gscratch/zlab/sg01/test_eval_2_exp/'
 
 CHECKPOINT_TO_PROCESS='checkpoint_last'
 
@@ -25,17 +25,17 @@ ln -s $SHARED_PATH ./$filename
 popd
 
 set -ux
-CUDA_VISIBLE_DEVICES=0 python -m fairseq_cli.eval_lm \
+CUDA_VISIBLE_DEVICES=0,1 python -m fairseq_cli.eval_lm \
   $DATA_PATH \
-  --ddp-backend legacy_ddp \
+  --ddp-backend c10d \
   --path $TEMP_FOLDER/$CHECKPOINT_TO_PROCESS.pt \
   --task streaming_finetune_language_modeling \
-  --gen-subset valid \
+  --gen-subset valid_c4_small/C4_small \
   --sample-break-mode none \
   --merges-filename /gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt \
   --vocab-filename /gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json \
   --tokens-per-sample $TOKENS_PER_SAMPLE \
   --batch-size $BATCH_SIZE \
   --fp16  --is-moe --distributed-world-size $NUM_GPUS \
-  --model-overrides "{'world_size': $NUM_GPUS, 'moe_eval_capacity_token_fraction': $MOE_EVAL_CAPACITY_TOKEN_FRACTION}" \
+  --model-overrides "{'world_size': $NUM_GPUS, 'moe_eval_capacity_token_fraction': 1.0}" \
   --log-format json

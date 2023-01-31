@@ -841,7 +841,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
             if not checkpoint else 0
         )
-        if not is_moe_layer or getattr(args, "ddp_backend", None) != "fully_sharded":
+        if args['world_size'] == 1 or not is_moe_layer or getattr(args, "ddp_backend", None) != "fully_sharded":
             layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         else:
             layer = fsdp_wrap_expert(args, layer, min_num_params=min_params_to_wrap)

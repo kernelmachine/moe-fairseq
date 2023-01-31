@@ -2,34 +2,14 @@
 
 ## Dependencies
 
-Follow the fairseq installation instructions:
-https://github.com/pytorch/fairseq/#requirements-and-installation
+Follow the installation instructions at our metaseq fork:
+https://github.com/kernelmachine/metaseq/blob/main/docs/setup_btm.md
 
-The following package versions are recommended:
+But don't install metaseq, just install fairseq by cd'ing into this directory:
 
-apex:
-```bash
-pip install -v --no-cache-dir --global-option="--cpp_ext" \
-    --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" \
-    --global-option="--xentropy" --global-option="--fast_multihead_attn" \
-    git+git://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 ```
-
-fairscale:
-```bash
-pip install fairscale==0.4.0
-```
-
-hydra:
-```bash
-pip install hydra-core==1.0.7 omegaconf==2.0.6
-```
-
-megatron (must be installed from source to get fused kernels):
-```bash
-git clone --depth=1 --branch v2.6 https://github.com/NVIDIA/Megatron-LM.git
-cd Megatron-LM
-pip install -e .
+cd fairseq/
+pip install --editable .
 ```
 
 ## Single-node training

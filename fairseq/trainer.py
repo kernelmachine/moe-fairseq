@@ -351,6 +351,10 @@ class Trainer(object):
         return getattr(self.cfg.model, "moe_freq", 0) > 0
 
     @property
+    def moe_initialize_from_opt(self):
+        return getattr(self.cfg.model, "moe_initialize_from_opt", False)
+
+    @property
     def is_base_moe(self) -> bool:
         return getattr(self.cfg.model, "base_layers", 0) > 0
     def use_sharded_state(self):
@@ -513,6 +517,7 @@ class Trainer(object):
                     filename,
                     load_on_all_ranks=load_on_all_ranks,
                     is_moe=self.is_moe or self.is_base_moe,
+                    moe_initialize_from_opt=self.moe_initialize_from_opt
                 )
                 last_optim_state = state.get("last_optimizer_state", None)
                 if last_optim_state == -1:

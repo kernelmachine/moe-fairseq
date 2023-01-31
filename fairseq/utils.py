@@ -20,7 +20,7 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor
-
+import random
 
 try:
     from amp_C import multi_tensor_l2norm
@@ -772,6 +772,13 @@ def eval_bool(x, default=False):
 def print_r0(x, file=None):
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
         print(x, file=file, flush=True)
+
+def get_random_port():
+    old_state = random.getstate()
+    random.seed()
+    port = random.randint(10000, 20000)
+    random.setstate(old_state)
+    return port
 
 
 def round_safe(x):

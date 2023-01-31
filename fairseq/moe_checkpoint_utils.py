@@ -130,6 +130,11 @@ def merge_multi_local_expert_states(expert_states: List[Dict]) -> Dict:
 
 
 def initialize_moe_from_opt(output_dir, num_experts):
+
+    if Path(output_dir).exists() and len(list(Path(output_dir).glob("*.pt"))) > 1:
+        logger.info("output directory not empty, skipping OPT initialization...")
+        return
+    logger.info("initializing MoE from OPT checkpoint....")
     # get OPT state
     #     
     # # get an example state_dict from an MOE model

@@ -241,6 +241,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='Frequency at which we insert MoE Transformer decoder layers')
         parser.add_argument('--moe-expert-count', type=int, metavar='D', default=0,
                             help='Number of experts in each MoE Layer')
+        parser.add_argument('--moe-initialize-from-opt', type=int, metavar='D', default=0,
+                            help='Number of experts in each MoE Layer')
         parser.add_argument('--moe-gating-use-fp32', default=False, action='store_true',
                             help="Use FP32 computations in MoE top2 gating function")
         parser.add_argument('--moe-second-expert-policy', type=str, default='sampling',

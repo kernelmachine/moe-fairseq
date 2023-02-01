@@ -66,35 +66,36 @@ def save_checkpoint(
 
     suffix = trainer.checkpoint_suffix
     checkpoint_conds = collections.OrderedDict()
-    checkpoint_conds["checkpoint{}{}.pt".format(epoch, suffix)] = (
-        end_of_epoch and not cfg.no_epoch_checkpoints and epoch % cfg.save_interval == 0
-    )
-    checkpoint_conds["checkpoint_{}_{}{}.pt".format(epoch, updates, suffix)] = (
-        not end_of_epoch
-        and cfg.save_interval_updates > 0
-        and updates % cfg.save_interval_updates == 0
-    )
-    checkpoint_conds["checkpoint_best{}.pt".format(suffix)] = (
-        val_loss is not None
-        and (
-            not hasattr(save_checkpoint, "best")
-            or is_better(val_loss, save_checkpoint.best)
-        )
-        and not cfg.no_best_checkpoints
-    )
-    if (
-        val_loss is not None
-        and cfg.keep_best_checkpoints > 0
-        and not cfg.no_best_checkpoints
-    ):
-        checkpoint_conds[
-            "checkpoint.best_{}_{:.2f}.pt".format(cfg.best_checkpoint_metric, val_loss)
-        ] = not hasattr(save_checkpoint, "best") or is_better(
-            val_loss, save_checkpoint.best
-        )
     checkpoint_conds[
         "checkpoint_last{}.pt".format(suffix)
     ] = not cfg.no_last_checkpoints
+
+    # checkpoint_conds["checkpoint{}{}.pt".format(epoch, suffix)] = (
+    #     end_of_epoch and not cfg.no_epoch_checkpoints and epoch % cfg.save_interval == 0
+    # )
+    # checkpoint_conds["checkpoint_{}_{}{}.pt".format(epoch, updates, suffix)] = (
+    #     not end_of_epoch
+    #     and cfg.save_interval_updates > 0
+    #     and updates % cfg.save_interval_updates == 0
+    # )
+    # checkpoint_conds["checkpoint_best{}.pt".format(suffix)] = (
+    #     val_loss is not None
+    #     and (
+    #         not hasattr(save_checkpoint, "best")
+    #         or is_better(val_loss, save_checkpoint.best)
+    #     )
+    #     and not cfg.no_best_checkpoints
+    # )
+    # if (
+    #     val_loss is not None
+    #     and cfg.keep_best_checkpoints > 0
+    #     and not cfg.no_best_checkpoints
+    # ):
+    #     checkpoint_conds[
+    #         "checkpoint.best_{}_{:.2f}.pt".format(cfg.best_checkpoint_metric, val_loss)
+    #     ] = not hasattr(save_checkpoint, "best") or is_better(
+    #         val_loss, save_checkpoint.best
+    #     )
 
     extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
     if hasattr(save_checkpoint, "best"):

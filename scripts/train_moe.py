@@ -15,6 +15,7 @@ if __name__ == '__main__':
     parser.add_argument("--data", choices=['imdb','c4', 'opt_data', 's2orc_data', 'pile_data_alt', 'flan_data', 'demix_data', 'stories', 'Wikipedia_en', 'DM_Mathematics', 'OpenWebText2', 'Gutenberg_PG-19', 'redditflattened', 'HackerNews', 'CommonCrawl', 'BookCorpusFair', 'Enron_Emails', 'ccnewsv2', 'USPTO', 'OpenSubtitles'])
     parser.add_argument("--num-nodes", type=int)
     parser.add_argument("--num-gpus", type=int)
+    parser.add_argument("--partition", type=str)
     parser.add_argument("--max-steps", type=int, default=10000)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--update-freq", type=int, default=1)
@@ -34,5 +35,6 @@ if __name__ == '__main__':
                 {args.data} \
                 {args.max_steps} \
                 {args.update_freq} \
+                {args.partition} \
                 "
     subprocess.run(command.split(), check=True, text=True)

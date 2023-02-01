@@ -1,14 +1,22 @@
-NUM_GPUS=4
 
-MODEL_DIR='/gscratch/zlab/sg01/test_eval_4_exp/'
+MODEL_DIR=$1
+NUM_GPUS=$2
+SLURM=$3
 
 CHECKPOINT_TO_PROCESS='checkpoint_last'
 
 TOKENS_PER_SAMPLE=2048
 BATCH_SIZE=1
-MODEL_CAPACITY=32 # based on train script = 2 * (local_batch_size)/(global_num_experts) = 2 * (8*1024)/512 = 32
+MODEL_CAPACITY=$(( 2 * 8  * $TOKENS_PER_SAMPLE / ${NUM_GPUS} )) # based on train script = 2 * (local_batch_size)/(global_num_experts) = 2 * (8*1024)/512 = 32
 MOE_EVAL_CAPACITY_TOKEN_FRACTION=`python3 -c "print($MODEL_CAPACITY/($BATCH_SIZE * $TOKENS_PER_SAMPLE))"` 
 DATA_PATH=/gscratch/zlab/sg01/data/c4/
+
+if [ $SLURM == "slurm" ]; then
+  SUBMITIT_PHRASE="--submitit"
+else
+  SUBMITIT_PHRASE="";
+fi;
+
 
 # create temporary model checkpoint directory and create symlinks
 RANK_PATHS=`find $MODEL_DIR -name $CHECKPOINT_TO_PROCESS-rank-*.pt`
@@ -25,17 +33,19 @@ ln -s $SHARED_PATH ./$filename
 popd
 
 set -ux
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -m fairseq_cli.eval_lm \
+python -m fairseq_cli.eval_lm \
   $DATA_PATH \
   --ddp-backend c10d \
   --path $TEMP_FOLDER/$CHECKPOINT_TO_PROCESS.pt \
   --task streaming_finetune_language_modeling \
   --gen-subset valid_c4_small/C4_small \
-  --sample-break-mode none \
+  --sample-break-mode eos_pad_8 \
   --merges-filename /gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt \
   --vocab-filename /gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json \
   --tokens-per-sample $TOKENS_PER_SAMPLE \
   --batch-size $BATCH_SIZE \
+  --max-valid-steps 200 \
   --fp16  --is-moe --distributed-world-size $NUM_GPUS \
-  --model-overrides "{'world_size': $NUM_GPUS, 'moe_eval_capacity_token_fraction': 1.0}" \
-  --log-format json
+  --model-overrides "{'world_size': $NUM_GPUS, 'moe_eval_capacity_token_fraction': 0.0}" \
+  --log-format json \
+  $SUBMITIT_PHRASE

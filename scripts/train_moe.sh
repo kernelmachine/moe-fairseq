@@ -7,8 +7,7 @@ SLURM=$6
 DATA=$7
 MAX_STEPS=$8
 UPDATE_FREQ=${9}
-
-
+PARTITION=${10}
 
 
 CHECKPOINT_DIR="/gscratch/zlab/$USER/opt_ft/moe/";
@@ -37,6 +36,17 @@ else
 fi;
 
 
+# reducing batch size to 2
+if [ $PARTITION != "gpu-a40" ]; then
+    BS=2;
+    UF=$(( ${UPDATE_FREQ}  * 4 ));
+else
+    BS=8;
+    UF=${UPDATE_FREQ};
+fi;
+
+NUM_EXPERTS=$(( ${NUM_GPUS}  * ${NUM_NODES} ));
+
 python -m fairseq.fb_sweep.ft_stream \
     -n $NUM_NODES \
     -g $NUM_GPUS \
@@ -46,18 +56,18 @@ python -m fairseq.fb_sweep.ft_stream \
     --data-type $DATA \
     --lr $LR \
     --wd 0.1 \
-    --moe-num-experts $NUM_GPUS \
+    --moe-num-experts $NUM_EXPERTS \
     --warmup-update 0 \
     --max-update ${MAX_STEPS} \
-    --uf ${UPDATE_FREQ} \
+    --uf $UF \
     --no-tensorboard \
     --no-wandb \
     --interval 500 \
     --save-interval-updates 250 \
     --keep-interval-updates 1 \
-    --bs 8 \
+    --bs $BS \
     --sbm none \
-    --partition gpu-a40 \
+    --partition $PARTITION \
     --resume-failed \
     --fair \
     --max-valid-steps 100 \

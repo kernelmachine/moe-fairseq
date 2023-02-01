@@ -28,7 +28,12 @@ from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter
 from fairseq.sequence_scorer import SequenceScorer
 from omegaconf import DictConfig
+from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
+
 import time
+from pathlib import Path
+import uuid
+import submitit
 
 
 logging.basicConfig(
@@ -373,7 +378,6 @@ def eval_dataset(cfg: DictConfig, eval_split, task, models, start_time):
 
     return results, rr, end_time
 
-
 def main(cfg: DictConfig, **unused_kwargs):
     start_time = time.time()
     if isinstance(cfg, Namespace):
@@ -464,12 +468,105 @@ def main(cfg: DictConfig, **unused_kwargs):
 
     return results
 
+def get_shared_folder() -> Path:
+    user = os.getenv("USER")
+    if Path("/gscratch/").is_dir():
+        p = Path(f"/gscratch/zlab/{user}/experiments")
+        p.mkdir(exist_ok=True)
+        return p
+    raise RuntimeError("No shared folder available")
+
+
+def get_init_file():
+    # Init file must not exist, but it's parent dir must exist.
+    os.makedirs(str(get_shared_folder()), exist_ok=True)
+    init_file = get_shared_folder() / f"{uuid.uuid4().hex}_init"
+    if init_file.exists():
+        os.remove(str(init_file))
+    return init_file
+
+
+def call_main(cfg: FairseqConfig, main, **kwargs):
+    if cfg.distributed_training.distributed_init_method is None:
+        distributed_utils.infer_init_method(cfg.distributed_training)
+
+    if cfg.distributed_training.distributed_init_method is not None:
+        # distributed training
+        if not cfg.distributed_training.distributed_no_spawn:
+            start_rank = cfg.distributed_training.distributed_rank
+            cfg.distributed_training.distributed_rank = None  # assign automatically
+            kwargs["start_rank"] = start_rank
+            torch.multiprocessing.spawn(
+                fn=distributed_utils.distributed_main,
+                args=(main, cfg, kwargs),
+                nprocs=min(
+                    torch.cuda.device_count(),
+                    cfg.distributed_training.distributed_world_size,
+                ),
+                join=True,
+            )
+        else:
+            distributed_utils.distributed_main(cfg.distributed_training.device_id, main, cfg, kwargs)
+    elif cfg.common.tpu and cfg.distributed_training.distributed_world_size > 1:
+        import torch_xla.distributed.xla_multiprocessing as xmp
+
+        torch.multiprocessing.set_sharing_strategy("file_system")
+        xmp.spawn(
+            fn=distributed_utils.distributed_main,
+            args=(main, cfg, kwargs),
+            # tpu-comment:
+            #   8 devices in one TPU VM, is the max processes to be spawned.
+            #   The rest is driven by xm.distributed.xla_dist
+            nprocs=min(cfg.distributed_training.distributed_world_size, 8),
+        )
+    else:
+        # single GPU main
+        main(cfg, **kwargs)
+
+
+
+def runner(x):
+    return distributed_utils.call_main(x, main)
 
 def cli_main():
     parser = options.get_eval_lm_parser()
+    parser.add_argument("--submitit", action='store_true')
     args = options.parse_args_and_arch(parser)
 
-    distributed_utils.call_main(convert_namespace_to_omegaconf(args), main)
+    if args.submitit:
+        executor = submitit.AutoExecutor(folder="/gscratch/zlab/sg01/submitit_evals/", slurm_max_num_timeout=30)
+        num_gpus_per_node = 4
+        nodes = 1
+        timeout_min = 60
+
+        partition = 'ckpt'
+        kwargs = {}
+
+        executor.update_parameters(
+                mem_gb=40 * num_gpus_per_node,
+                gpus_per_node=num_gpus_per_node,
+                tasks_per_node=num_gpus_per_node,  # one task per GPU
+                cpus_per_task=10,
+                nodes=nodes,
+                timeout_min=timeout_min,  # max is 60 * 72
+                # Below are cluster dependent parameters
+                slurm_partition=partition,
+                slurm_account="zlab",
+                slurm_array_parallelism=1,
+                **kwargs
+            )
+
+        executor.update_parameters(name="eval")
+
+        
+        args.dist_url = get_init_file().as_uri()
+        func = lambda x: runner(x)
+
+        executor.map_array(func, [convert_namespace_to_omegaconf(args)])
+        logger.info("launched evaluation job via submitit")
+    else:
+        call_main(convert_namespace_to_omegaconf(args), main)
+    
 
 
 if __name__ == "__main__":

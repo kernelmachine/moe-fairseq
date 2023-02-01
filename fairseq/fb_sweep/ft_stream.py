@@ -294,7 +294,7 @@ FINE_TUNE_DATA_CONFIGS = {
     },
     "c4": {
         "path": "c4/",
-        "valid_subsets": ["valid"],
+        "valid_subsets": ["valid_c4_small/C4_small"],
         "train_subsets": ['train']
     },
 
@@ -522,7 +522,7 @@ def get_grid(args):
     H("--adam-eps", 1e-6)
     H("--clip-norm", args.clip_norm, save_dir_key=lambda val: f"clip{val}" if args.clip_norm < 1.0 else "")
     if not args.no_fp16_adam:
-        H("--fp16-adam-stats")
+        # H("--fp16-adam-stats")
         H("--optimizer", "adam", save_dir_key=lambda val: "fp16adam")
     else:
         H("--optimizer", "adam", save_dir_key=lambda val: "fp32adam")

@@ -9,6 +9,8 @@ import logging
 import os
 import pickle
 import random
+import signal
+
 import socket
 import struct
 import subprocess
@@ -42,6 +44,43 @@ logger = logging.getLogger(__name__)
 
 def is_master(cfg: DistributedTrainingConfig):
     return cfg.distributed_rank == 0
+
+def _spawn_helper(main, cfg, kwargs):
+    """
+    Perform a fork() to many processes.
+
+    Intentionally runs the rank0 in the main process so that signals
+    can be more easily caught and we can cleanup processes.
+    """
+    # Launch multiple subprocesses
+    spawncontext = torch.multiprocessing.start_processes(
+        distributed_main,
+        # need to give rank offset as 1 to cover the fact that the main
+        # process is rank 0, but that spawn() doesn't let you control rank:
+        # it always starts at 0
+        (main, cfg, kwargs),
+        nprocs=min(
+            torch.cuda.device_count(),
+            cfg.distributed_training.distributed_world_size - 1,
+        ),
+        join=False,
+        start_method="spawn",
+    )
+
+    try:
+        # -1 because we offset by +1 inside distributed_main when using
+        # spawn_helper
+        retval = distributed_main(-1, main, cfg, kwargs)
+        spawncontext.join()
+        return retval
+    except (KeyboardInterrupt, Exception):
+        # weirdly KeyboardInterrupt is not an Exception
+        # propagate exceptions on the main node by killing workers
+        for p in spawncontext.processes:
+            if p.is_alive():
+                os.kill(p.pid, signal.SIGTERM)
+        raise
+
 
 
 def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):

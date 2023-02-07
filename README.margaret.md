@@ -24,7 +24,7 @@ for lines to change to FAIR cluster env. I think I marked everything!
 
 ## Training MoE language models
 
-We always use 1 expert per GPU.
+We assume 1 expert per GPU, and topk=2.
 
 ```bash
 python -m scripts.train_moe \

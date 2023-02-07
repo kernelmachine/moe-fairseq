@@ -12,6 +12,7 @@ CONSTRAINT=${11}
 END_LR=${12}
 FASTFORWARD=${13}
 
+# TODO(margaret): change this
 CHECKPOINT_DIR="/gscratch/zlab/$USER/opt_ft/moe/";
 PROJECT="finetune.moe.$DATA";
 
@@ -87,7 +88,7 @@ python -m fairseq.fb_sweep.ft_stream \
     $INIT_PHRASE \
     $LOCAL_PHRASE \
     $JOBARRAY_PHRASE \
-    --script /gscratch/zlab/$USER/fairseq/fairseq_cli/train.py 
+    --script /gscratch/zlab/$USER/fairseq/fairseq_cli/train.py  # TODO(margaret): change this
 
 
 # python -m  fairseq_cli.train \

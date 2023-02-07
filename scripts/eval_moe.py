@@ -10,11 +10,13 @@ LEARNING_RATES = {
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-dir", type=str)
+    parser.add_argument('--data-dir', type=str, default='/gscratch/zlab/sg01/data/c4/')
     parser.add_argument("--num-experts", type=int)
     parser.add_argument("--run", choices=['slurm', 'local'])
     parser.add_argument("--partition", type=str, default='ckpt')
     parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
     parser.add_argument("--checkpoint-prefix", type=str, default='checkpoint_last')
+    parser.add_argument("--account", type=str, default='zlab') 
 
     args = parser.parse_args()
     
@@ -25,5 +27,7 @@ if __name__ == '__main__':
                 {args.checkpoint_prefix} \
                 {args.partition} \
                 {args.constraint} \
+                {args.data_dir} \
+                {args.account} \
                 "
     subprocess.run(command.split(), check=True, text=True)

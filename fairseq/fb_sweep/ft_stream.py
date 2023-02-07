@@ -34,16 +34,16 @@ for _cluster, _folder in DATA_LOCATIONS.items():
             from fairseq.fb_sweep.dependency_checks import *  # noqa
         break
 
-DATA_LOCATIONS[ComputeEnvs.FAIR] = "/gscratch/zlab/sg01/data/"
+DATA_LOCATIONS[ComputeEnvs.FAIR] = "/gscratch/zlab/sg01/data/" # TODO(margaret): change this
 # DATA_LOCATIONS[ComputeEnvs.FAIR] = "/datasets01/"
 DATA_LOCATIONS[ComputeEnvs.AWS] = "/fsx-mudslide/rpasunuru/data"
 DATA_LOCATIONS[ComputeEnvs.AZURE] = "/shared/home/sviyer/data"
 
 PRETRAIN_MODEL_LOCATIONS = {
     ComputeEnvs.FAIR: {
-        "125m": "/gscratch/zlab/sg01/opt/125m/checkpoint_last.pt",
+        "125m": "/gscratch/zlab/sg01/opt/125m/checkpoint_last.pt", 
         "350m": "/checkpoint/victorialin/opt_models/350M_gptz/checkpoint_last.pt",
-        "1.3b": "/gscratch/zlab/sg01/opt/1.3b/checkpoint_last.pt",
+        "1.3b": "/gscratch/zlab/sg01/opt/1.3b/checkpoint_last.pt", # TODO(margaret): change this
         "resharded_1.3b": "/checkpoint/suching/opt_models/resharded_1.3b/checkpoint_last.pt",
         "6.7b": "/checkpoint/victorialin/opt_models/6.7B_gptz/checkpoint_last.pt",
         #"1.3b": "/checkpoint/suching/opt_ft/dense/finetune.opt.s2orc_data.1.3b.0edr.mu10000.wu0.bsz8.fp16adam.rs1234.lr2e-05.pat_10.ngpu4/checkpoint_1_10000.pt",
@@ -417,7 +417,9 @@ def get_grid(args):
         H("--task", "streaming_instruction_finetune_language_modeling")
     else:
         H("--task", "streaming_finetune_language_modeling")
+    # TODO(margaret): change this
     H("--vocab-filename", os.path.join("/gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json"))# , save_dir_key=lambda _: "gpt2")
+    # TODO(margaret): change this
     H(
         "--merges-filename",
         os.path.join("/gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt"),

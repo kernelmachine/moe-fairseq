@@ -526,6 +526,7 @@ def cli_main():
     parser.add_argument("--submitit", action='store_true')
     parser.add_argument("--partition", type=str, default='ckpt')
     parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
+    parser.add_argument("--account", type=str, default='zlab')
     parser.add_argument("--num-experts", type=int)
     args = options.parse_args_and_arch(parser)
 
@@ -547,7 +548,7 @@ def cli_main():
                 # Below are cluster dependent parameters
                 slurm_partition=args.partition,
                 slurm_constraint=args.constraint,
-                slurm_account="zlab",
+                slurm_account=args.account,
                 **kwargs
             )
 

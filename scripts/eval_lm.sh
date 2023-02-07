@@ -5,6 +5,8 @@ SLURM=$3
 CHECKPOINT_TO_PROCESS=$4
 PARTITION=$5
 CONSTRAINT=$6
+DATA_PATH=$7
+ACCOUNT=$8
 
 echo $CHECKPOINT_TO_PROCESS
 
@@ -12,10 +14,7 @@ TOKENS_PER_SAMPLE=2048
 BATCH_SIZE=1
 MODEL_CAPACITY=$(( 2 * (8  * $TOKENS_PER_SAMPLE) / ${NUM_EXPERTS} )) # based on train script = 2 * (local_batch_size)/(global_num_experts) = 2 * (8*1024)/512 = 32
 
-
-
 MOE_EVAL_CAPACITY_TOKEN_FRACTION=`python3 -c "print($BATCH_SIZE * $TOKENS_PER_SAMPLE/$MODEL_CAPACITY)"` 
-DATA_PATH=/gscratch/zlab/sg01/data/c4/
 
 if [ $SLURM == "slurm" ]; then
   SUBMITIT_PHRASE="--submitit"
@@ -23,26 +22,6 @@ else
   SUBMITIT_PHRASE="";
 fi;
 
-
-# echo $MODEL_DIR
-# # create temporary model checkpoint directory and create symlinks
-# RANK_PATHS=`find $MODEL_DIR -name $CHECKPOINT_TO_PROCESS-rank-*.pt`
-# echo $RANK_PATHS
-# TEMP_FOLDER=`mktemp -d`
-# pushd $TEMP_FOLDER
-# for m in $RANK_PATHS;
-# do
-#     filename=`echo $m | rev | cut -d '/' -f1 | rev | sed 's/-shard[0-9]*//g'` # extract only filename from full path
-#     ln -s $m ./$filename 
-# done;
-# SHARED_PATH=`find $MODEL_DIR -name $CHECKPOINT_TO_PROCESS-shared-shard0.pt`
-# filename=`echo $SHARED_PATH | rev | cut -d '/' -f1 | rev | sed 's/-shard[0-9]*//g'`
-# ln -s $SHARED_PATH ./$filename
-# popd
-
-# ls $TEMP_FOLDER
-
-# set -ux
 python -m fairseq_cli.eval_lm \
   $DATA_PATH \
   --ddp-backend c10d \
@@ -60,5 +39,6 @@ python -m fairseq_cli.eval_lm \
   --log-format json \
   --partition $PARTITION \
   --constraint $CONSTRAINT \
+  --account $ACCOUNT \
   --num-experts $NUM_EXPERTS \
   $SUBMITIT_PHRASE

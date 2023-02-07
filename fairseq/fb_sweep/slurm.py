@@ -343,7 +343,7 @@ def gen_sbatch_command_and_str(
         "--output",
         train_log,
         "--account",
-        "zlab",
+        "zlab", # TODO(margaret): change this
         "--error",
         train_stderr,
         "--open-mode",

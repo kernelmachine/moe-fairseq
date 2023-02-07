@@ -387,6 +387,8 @@ def get_grid(args):
 
     if args.restore_file:
         H("--restore-file", args.restore_file, save_dir_key=lambda _: args.model_size)
+    if args.fast_forward:
+        H("--fast-forward", args.fast_forward)
     # elif args.finetune_from_model:
     #     H(
     #         "--finetune-from-model",
@@ -463,8 +465,8 @@ def get_grid(args):
     H("--moe-gate-loss-combine-method", "sum")
 
 
-    # if not args.embdr:
-        # H("--no-emb-dropout", save_dir_key=lambda _: "0edr")
+    if not args.embdr:
+        H("--no-emb-dropout", save_dir_key=lambda _: "0edr")
     if args.min_loss_scale > 0:
         H("--min-loss-scale", args.min_loss_scale)
     # Add document attention seperator to efficiently finetune under streaming setting.
@@ -503,7 +505,7 @@ def get_grid(args):
         hyperparam("--batch-size", args.bs, save_dir_key=lambda val: f"bsz{val}"),
         # Use a fixed batch size for valid. Since we limit the max valid steps,
         # the number of valid examples should be consistent across different hyperparam
-        hyperparam("--batch-size-valid", 8),
+        hyperparam("--batch-size-valid", 2),
         hyperparam("--update-freq", args.uf, save_dir_key=lambda val: f"uf{val}"),
     ]
 
@@ -551,8 +553,8 @@ def get_grid(args):
     # If restore-file is set, then anyway we don't need the reset of meters
     # such that we can continue training
 
-    H("--reset-meters")
-    H("--reset-dataloader")
+    # H("--reset-meters")
+    # H("--reset-dataloader")
     #H("--reset-optimizer")
     H("--fp16-init-scale", 128)
 
@@ -585,6 +587,9 @@ def add_args(parser):
     )
     parser.add_argument(
         "--restore-file", help="load an existing checkpoint for continuing training"
+    )
+    parser.add_argument(
+        "--fast-forward", help="fastforward to future epoch"
     )
     parser.add_argument("--data-type", type=str, default=None)
     parser.add_argument("--freeze", action="store_true")

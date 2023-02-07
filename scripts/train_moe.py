@@ -15,7 +15,11 @@ if __name__ == '__main__':
     parser.add_argument("--data", choices=['imdb','c4', 'opt_data', 's2orc_data', 'pile_data_alt', 'flan_data', 'demix_data', 'stories', 'Wikipedia_en', 'DM_Mathematics', 'OpenWebText2', 'Gutenberg_PG-19', 'redditflattened', 'HackerNews', 'CommonCrawl', 'BookCorpusFair', 'Enron_Emails', 'ccnewsv2', 'USPTO', 'OpenSubtitles'])
     parser.add_argument("--num-nodes", type=int)
     parser.add_argument("--num-gpus", type=int)
+    parser.add_argument("--fastforward-to-epoch", type=int, default=None)
+
     parser.add_argument("--partition", type=str)
+    parser.add_argument("--constraint", type=str)
+
     parser.add_argument("--max-steps", type=int, default=10000)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--update-freq", type=int, default=1)
@@ -24,7 +28,9 @@ if __name__ == '__main__':
     
     world_size = args.num_gpus * args.num_nodes
     learning_rate = args.lr or LEARNING_RATES[args.model_size]
-    
+    # TODO(suchin): removed this
+    # end_lr = learning_rate * 0.1
+    end_lr = 0.0
     command = f"bash /gscratch/zlab/sg01/fairseq/scripts/train_moe.sh \
                 {args.initialization} \
                 {args.lr} \
@@ -36,5 +42,8 @@ if __name__ == '__main__':
                 {args.max_steps} \
                 {args.update_freq} \
                 {args.partition} \
+                {args.constraint} \
+                {end_lr} \
+                {args.fastforward_to_epoch} \
                 "
     subprocess.run(command.split(), check=True, text=True)

@@ -12,7 +12,9 @@ if __name__ == '__main__':
     parser.add_argument("--model-dir", type=str)
     parser.add_argument("--num-experts", type=int)
     parser.add_argument("--run", choices=['slurm', 'local'])
-    parser.add_argument("--partition", type=str)
+    parser.add_argument("--partition", type=str, default='ckpt')
+    parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
+    parser.add_argument("--checkpoint-prefix", type=str, default='checkpoint_last')
 
     args = parser.parse_args()
     
@@ -20,6 +22,8 @@ if __name__ == '__main__':
                 {args.model_dir} \
                 {args.num_experts} \
                 {args.run} \
+                {args.checkpoint_prefix} \
                 {args.partition} \
+                {args.constraint} \
                 "
     subprocess.run(command.split(), check=True, text=True)

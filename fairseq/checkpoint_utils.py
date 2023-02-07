@@ -243,6 +243,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
         reset_lr_scheduler,
         optimizer_overrides,
         reset_meters=reset_meters,
+        fast_forward=cfg.fast_forward
     )
 
     if (
@@ -256,6 +257,8 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     if extra_state is not None and not reset_dataloader:
         # restore iterator from checkpoint
         itr_state = extra_state["train_iterator"]
+        # itr_state['epoch'] = 3
+        # itr_state['iterations_in_epoch'] = 0
         epoch_itr = trainer.get_train_iterator(
             epoch=itr_state["epoch"], load_dataset=True, **passthrough_args
         )
@@ -270,7 +273,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     return extra_state, epoch_itr
 
 
-def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, moe_initialize_from_opt=False):
+def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, moe_initialize_from_opt=False, fast_forward=None):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility).
 
     If doing single-GPU training or if the checkpoint is only being loaded by at
@@ -308,6 +311,8 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is
     if is_moe and os.path.exists(shared_path):
         expert_state = moe_checkpoint_utils.load_expert_state(local_path)  # Possibly merge experts
         shared_state = torch_load_cpu(shared_path)
+        
+
         # if moe_initialize_from_opt:
         #     # initialize MoE with OPT weights
         #     logging.info("initializing moe with OPT model...")
@@ -346,6 +351,13 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is
             overwrite_args_by_name(state["cfg"], arg_overrides)
 
     state = _upgrade_state_dict(state)
+
+
+    if fast_forward:
+        state['extra_state']["train_iterator"]['epoch'] = fast_forward
+        state['extra_state']['train_iterator']['iterations_in_epoch'] = 0
+
+
     return state
 
 
@@ -358,6 +370,7 @@ def load_model_ensemble(
     num_shards=1,
     state=None,
     is_moe=False,
+    fast_forward=None,
 ):
     """Loads an ensemble of models.
 
@@ -379,6 +392,7 @@ def load_model_ensemble(
         num_shards,
         state,
         is_moe=is_moe,
+        fast_forward=fast_forward
     )
     return ensemble, args
 
@@ -437,6 +451,7 @@ def load_model_ensemble_and_task(
     num_shards=1,
     state=None,
     is_moe=False,
+    fast_forward=None
 ):
     logger.info("load_model_ensemble_and_task is_moe={}".format(is_moe))
     assert state is None or len(filenames) == 1
@@ -461,7 +476,7 @@ def load_model_ensemble_and_task(
             if not PathManager.exists(filename):
                 raise IOError("Model file not found: {}".format(filename))
             if state is None:
-                state = load_checkpoint_to_cpu(filename, arg_overrides, is_moe=is_moe)
+                state = load_checkpoint_to_cpu(filename, arg_overrides, is_moe=is_moe, fast_forward=fast_forward)
             if "args" in state and state["args"] is not None:
                 cfg = convert_namespace_to_omegaconf(state["args"])
             elif "cfg" in state and state["cfg"] is not None:

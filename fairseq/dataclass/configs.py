@@ -552,6 +552,16 @@ class CheckpointConfig(FairseqDataclass):
             "(default: <save-dir>/checkpoint_last.pt"
         },
     )
+
+    fast_forward: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "fastforward to future epoch "
+            "(default: None"
+        },
+    )
+
+
     finetune_from_model: Optional[str] = field(
         default=None,
         metadata={

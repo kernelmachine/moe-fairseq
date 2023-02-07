@@ -8,7 +8,9 @@ DATA=$7
 MAX_STEPS=$8
 UPDATE_FREQ=${9}
 PARTITION=${10}
-
+CONSTRAINT=${11}
+END_LR=${12}
+FASTFORWARD=${13}
 
 CHECKPOINT_DIR="/gscratch/zlab/$USER/opt_ft/moe/";
 PROJECT="finetune.moe.$DATA";
@@ -36,6 +38,13 @@ else
 fi;
 
 
+if [ $FASTFORWARD != "None" ]; then
+    FASTFORWARD_PHRASE="--fast-forward $FASTFORWARD ";
+else
+    FASTFORWARD_PHRASE="";
+fi;
+
+
 # reducing batch size to 2
 if [ $PARTITION != "gpu-a40" ]; then
     BS=2;
@@ -55,20 +64,24 @@ python -m fairseq.fb_sweep.ft_stream \
     --model-size $MODEL_SIZE \
     --data-type $DATA \
     --lr $LR \
-    --wd 0.1 \
+    --wd 0.0 \
     --moe-num-experts $NUM_EXPERTS \
     --warmup-update 0 \
     --max-update ${MAX_STEPS} \
     --uf $UF \
     --no-tensorboard \
     --no-wandb \
-    --interval 500 \
+    --interval 1000 \
     --save-interval-updates 250 \
     --keep-interval-updates 1 \
     --bs $BS \
     --sbm none \
     --partition $PARTITION \
+    --constraint $CONSTRAINT \
     --resume-failed \
+    $FASTFORWARD_PHRASE \
+    --dropout 0.1 \
+    --end-learning-rate $END_LR \
     --fair \
     --max-valid-steps 100 \
     $INIT_PHRASE \

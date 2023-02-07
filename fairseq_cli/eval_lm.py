@@ -240,7 +240,7 @@ def _all_reduce_float(x):
 
 def get_aggregated_loss(score_sum, count):
     if torch.distributed.is_initialized():
-        logger.warning("Aggregating scores across the distributed world")
+        # logger.warning("Aggregating scores across the distributed world")
         count = _all_reduce_float(count)
         score_sum = _all_reduce_float(score_sum)
     return (
@@ -401,7 +401,7 @@ def main(cfg: DictConfig, **unused_kwargs):
     is_base_moe = model_overrides.get('is_base_moe', False)
     if cfg.common_eval.is_moe or is_base_moe:
         rank = distributed_utils.get_data_parallel_rank()
-        cfg.checkpoint.checkpoint_suffix = f"-rank-{rank}"
+        cfg.checkpoint.checkpoint_suffix = f"-rank-{rank}-shard{rank}"
         is_moe = True
         # This is required for making all_to_all work on same sized tensors across gpus.
         # cfg['task']['pad_to_fixed_length'] = True
@@ -486,7 +486,18 @@ def get_init_file():
     return init_file
 
 
-def call_main(cfg: FairseqConfig, main, **kwargs):
+from fairseq import distributed_utils
+
+def call_main(cfg, main, **kwargs):
+    
+    import random
+    # if kwargs['port']:
+    #     cfg.distributed_training.distributed_port = int(kwargs['port'])
+    # else:
+    # if kwargs['use_random_port']:
+        # cfg.distributed_training.distributed_port = np.random.randint(10000,16000)
+    # else:
+    cfg.distributed_training.distributed_port = 56000
     if cfg.distributed_training.distributed_init_method is None:
         distributed_utils.infer_init_method(cfg.distributed_training)
 
@@ -496,63 +507,47 @@ def call_main(cfg: FairseqConfig, main, **kwargs):
             start_rank = cfg.distributed_training.distributed_rank
             cfg.distributed_training.distributed_rank = None  # assign automatically
             kwargs["start_rank"] = start_rank
-            torch.multiprocessing.spawn(
-                fn=distributed_utils.distributed_main,
-                args=(main, cfg, kwargs),
-                nprocs=min(
-                    torch.cuda.device_count(),
-                    cfg.distributed_training.distributed_world_size,
-                ),
-                join=True,
-            )
+            return distributed_utils._spawn_helper(main, cfg, kwargs)
         else:
-            distributed_utils.distributed_main(cfg.distributed_training.device_id, main, cfg, kwargs)
-    elif cfg.common.tpu and cfg.distributed_training.distributed_world_size > 1:
-        import torch_xla.distributed.xla_multiprocessing as xmp
-
-        torch.multiprocessing.set_sharing_strategy("file_system")
-        xmp.spawn(
-            fn=distributed_utils.distributed_main,
-            args=(main, cfg, kwargs),
-            # tpu-comment:
-            #   8 devices in one TPU VM, is the max processes to be spawned.
-            #   The rest is driven by xm.distributed.xla_dist
-            nprocs=min(cfg.distributed_training.distributed_world_size, 8),
-        )
+            return distributed_utils.distributed_main(
+                cfg.distributed_training.device_id, main, cfg, kwargs
+            )
     else:
         # single GPU main
-        main(cfg, **kwargs)
+        return main(cfg, **kwargs)
 
 
 
 def runner(x):
-    return distributed_utils.call_main(x, main)
+    return call_main(x, main)
 
 def cli_main():
     parser = options.get_eval_lm_parser()
     parser.add_argument("--submitit", action='store_true')
+    parser.add_argument("--partition", type=str, default='ckpt')
+    parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
+    parser.add_argument("--num-experts", type=int)
     args = options.parse_args_and_arch(parser)
 
     if args.submitit:
         executor = submitit.AutoExecutor(folder="/gscratch/zlab/sg01/submitit_evals/", slurm_max_num_timeout=30)
-        num_gpus_per_node = 4
-        nodes = 1
+        num_gpus_per_node = 8 if args.num_experts > 8 else args.num_experts
+        nodes = 1 if args.num_experts <= 8 else args.num_experts // 8
         timeout_min = 60
 
-        partition = 'ckpt'
         kwargs = {}
 
         executor.update_parameters(
                 mem_gb=40 * num_gpus_per_node,
                 gpus_per_node=num_gpus_per_node,
                 tasks_per_node=num_gpus_per_node,  # one task per GPU
-                cpus_per_task=10,
+                cpus_per_task=2,
                 nodes=nodes,
                 timeout_min=timeout_min,  # max is 60 * 72
                 # Below are cluster dependent parameters
-                slurm_partition=partition,
+                slurm_partition=args.partition,
+                slurm_constraint=args.constraint,
                 slurm_account="zlab",
-                slurm_array_parallelism=1,
                 **kwargs
             )
 
@@ -560,9 +555,9 @@ def cli_main():
 
         
         args.dist_url = get_init_file().as_uri()
-        func = lambda x: runner(x)
+        func = lambda x: call_main(x, main)
 
-        executor.map_array(func, [convert_namespace_to_omegaconf(args)])
+        executor.submit(func, convert_namespace_to_omegaconf(args))
         logger.info("launched evaluation job via submitit")
     else:
         call_main(convert_namespace_to_omegaconf(args), main)

@@ -33,6 +33,10 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     attention_dropout: float = field(
         default=0.0, metadata={"help": "dropout probability for attention weights"}
     )
+    no_emb_dropout: Optional[bool] = field(
+        default=False, metadata={"help": "Avoid emb dropout for decoder"}
+    )
+
     activation_dropout: float = field(
         default=0.0, metadata={"help": "dropout probability after activation in FFN."}
     )

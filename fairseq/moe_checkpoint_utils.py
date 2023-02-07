@@ -134,7 +134,7 @@ def initialize_moe_from_opt(output_dir, num_experts):
     if Path(output_dir).exists() and len(list(Path(output_dir).glob("*.pt"))) > 1:
         logger.info("output directory not empty, skipping OPT initialization...")
         return
-    logger.info("initializing MoE from OPT checkpoint....")
+    
     # get OPT state
     #     
     # # get an example state_dict from an MOE model
@@ -164,8 +164,13 @@ def initialize_moe_from_opt(output_dir, num_experts):
     # from fairseq import pdb; pdb.set_trace()
     # shared_state = {}
     # expert_state = {}
-
-    opt_state = torch.load('/gscratch/zlab/sg01/opt/1.3b/consolidated.pt')
+    # opt_state = torch.load('/gscratch/zlab/sg01/opt_ft/dense/1_cluster/finetune.opt.c4.1.3b.0edr.mu10000.wu0.bsz8.uf1.fp16adam.rs1234.lr2e-05.pat_10000.ngpu4/consolidated.pt')
+    path_to_opt = '/gscratch/zlab/sg01/opt/1.3b/consolidated.pt'
+    # path_to_opt = '/gscratch/zlab/sg01/opt_ft/dense/1_cluster/finetune.opt.c4.1.3b.0edr.mu10000.wu0.bsz8.uf1.fp16adam.rs1234.lr2e-05.pat_10000.ngpu4/consolidated.pt'
+    logger.info(f"initializing MoE from OPT checkpoint at {path_to_opt}....")
+    opt_state = torch.load(path_to_opt)
+    opt_state['extra_state']["train_iterator"]['epoch'] = 1
+    opt_state['extra_state']["train_iterator"]['iterations_in_epoch'] = 0
     expert_state_dict = torch.load('/gscratch/zlab/sg01/en_moe_lm_15b/model-rank-0.pt')
     stream_ = torch.load('/gscratch/zlab/sg01/en_moe_lm_15b/model-rank-0.pt')
     expert_cfg = expert_state_dict['cfg']

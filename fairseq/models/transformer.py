@@ -722,10 +722,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
         self._future_mask = torch.empty(0)
-
+        
         self.dropout_module = FairseqDropout(
             args.dropout, module_name=self.__class__.__name__
         )
+
+        if getattr(args, "no_emb_dropout", False):
+            self.dropout_module = None
+
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
@@ -882,8 +886,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
 
-        x = self.dropout_module(x)
-
+        if self.dropout_module is not None:
+            x = self.dropout_module(x)
         return x, embed
 
     def forward(

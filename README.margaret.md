@@ -24,7 +24,7 @@ for lines to change to FAIR cluster env. I think I marked everything!
 
 ## Training MoE language models
 
-We assume 1 expert per GPU, and topk=2.
+Here we do sparse upcycling from an OPT checkpoint. Assume 1 expert per GPU, and topk=2.
 
 ```bash
 python -m scripts.train_moe \
@@ -43,9 +43,8 @@ python -m scripts.train_moe \
 
 # Evaluating MoE language models
 
-#### Using `fairseq-eval-lm`
+This will run eval via submitit.
 
-After you train, 
 ```bash
 python scripts/eval_moe.py \
   --model-dir /gscratch/zlab/sg01/opt_ft/moe/moe/finetune.moe.c4.nexperts_32.init_opt.0edr.mu7869.wu0.bsz2.uf4.fp16adam.rs1234.lr2e-05.pat_10000.ngpu32/ \

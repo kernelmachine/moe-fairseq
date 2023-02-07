@@ -22,14 +22,11 @@ Search for the following string
 
 for lines to change to FAIR cluster env. I think I marked everything!
 
-## Single-node training
+## Training MoE language models
 
-The following command will benchmark an MoE language model using synthetic data
-on 8 GPUs. The model has 8 experts (one per GPU) and 4.1B parameters total.
+We always use 1 expert per GPU.
 
 ```bash
-# set NUM_EXPERTS based on # of GPUs and desired # experts per GPU
-# generally it's recommended to have a single expert per GPU
 python -m scripts.train_moe \
   --initialization opt \
   --model-size 1.3b \

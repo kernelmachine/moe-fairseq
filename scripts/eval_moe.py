@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
     parser.add_argument("--checkpoint-prefix", type=str, default='checkpoint_last')
     parser.add_argument("--account", type=str, default='zlab') 
+    parser.add_argument("--job-folder", type=str, default='/gscratch/zlab/sg01/submitit_evals/') 
 
     args = parser.parse_args()
     
@@ -29,5 +30,6 @@ if __name__ == '__main__':
                 {args.constraint} \
                 {args.data_dir} \
                 {args.account} \
+                {args.job_folder} \
                 "
     subprocess.run(command.split(), check=True, text=True)

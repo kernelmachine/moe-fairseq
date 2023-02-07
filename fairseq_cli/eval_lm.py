@@ -528,10 +528,12 @@ def cli_main():
     parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
     parser.add_argument("--account", type=str, default='zlab')
     parser.add_argument("--num-experts", type=int)
+    parser.add_argument("--job-folder", default="/gscratch/zlab/sg01/submitit_evals/")
     args = options.parse_args_and_arch(parser)
 
     if args.submitit:
-        executor = submitit.AutoExecutor(folder="/gscratch/zlab/sg01/submitit_evals/", slurm_max_num_timeout=30)
+        # TODO(margaret): change this
+        executor = submitit.AutoExecutor(folder=args.job_folder, slurm_max_num_timeout=30)
         num_gpus_per_node = 8 if args.num_experts > 8 else args.num_experts
         nodes = 1 if args.num_experts <= 8 else args.num_experts // 8
         timeout_min = 60

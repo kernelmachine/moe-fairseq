@@ -7,6 +7,7 @@ PARTITION=$5
 CONSTRAINT=$6
 DATA_PATH=$7
 ACCOUNT=$8
+JOB_FOLDER=$9
 
 echo $CHECKPOINT_TO_PROCESS
 
@@ -41,4 +42,5 @@ python -m fairseq_cli.eval_lm \
   --constraint $CONSTRAINT \
   --account $ACCOUNT \
   --num-experts $NUM_EXPERTS \
+  --job-folder $JOB_FOLDER \
   $SUBMITIT_PHRASE

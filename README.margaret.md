@@ -46,17 +46,16 @@ python -m scripts.train_moe \
 
 # Evaluating MoE language models
 
-#### Using `fairseq-eval-lm`
-
 After you train, 
 ```bash
 python scripts/eval_moe.py \
-  --model-dir /gscratch/zlab/sg01/opt_ft/moe/moe/finetune.moe.c4.nexperts_32.init_opt.0edr.mu7869.wu0.bsz2.uf4.fp16adam.rs1234.lr2e-05.pat_10000.ngpu32/ \
-  --data-dir /path/to/c4/data/ \
+  --model-dir /gscratch/zlab/sg01/opt_ft/moe/moe/finetune.moe.c4.nexperts_32.init_opt.0edr.mu7869.wu0.bsz2.uf4.fp16adam.rs1234.lr2e-05.pat_10000.ngpu32/ \ # change this to trained model path
+  --data-dir /path/to/c4/data/ \ # change this to path to c4 data
   --num-experts 32 \
   --run slurm \
   --checkpoint-prefix checkpoint_last \
   --partition ckpt \ # change this to fair cluster partitions
   --account zlab \ # change this to fair account
   --constraint '[rtx6k|a40|a100]' \ # change this to volta32gb
+  --job-folder '/gscratch/zlab/sg01/submitit_evals' \ # change this to wherever you want to output. I just look at the logs of the running job to check perf.
 ```

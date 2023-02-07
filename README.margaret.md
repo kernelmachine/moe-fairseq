@@ -3,7 +3,7 @@
 ## Dependencies
 
 Follow the installation instructions at our metaseq fork:
-https://github.com/kernelmachine/metaseq/blob/main/docs/setup_btm.md
+https://github.com/kernelmachine/metaseq/blob/main/docs/setup.md
 
 But don't install metaseq, just install fairseq by cd'ing into this directory:
 

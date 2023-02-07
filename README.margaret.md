@@ -3,7 +3,7 @@
 ## Dependencies
 
 Follow the installation instructions at our metaseq fork:
-https://github.com/kernelmachine/metaseq/blob/main/docs/setup_btm.md
+https://github.com/kernelmachine/metaseq/blob/main/docs/setup.md
 
 But don't install metaseq, just install fairseq by cd'ing into this directory:
 
@@ -22,14 +22,11 @@ Search for the following string
 
 for lines to change to FAIR cluster env. I think I marked everything!
 
-## Single-node training
+## Training MoE language models
 
-The following command will benchmark an MoE language model using synthetic data
-on 8 GPUs. The model has 8 experts (one per GPU) and 4.1B parameters total.
+Here we do sparse upcycling from an OPT checkpoint. Assume 1 expert per GPU, and topk=2.
 
 ```bash
-# set NUM_EXPERTS based on # of GPUs and desired # experts per GPU
-# generally it's recommended to have a single expert per GPU
 python -m scripts.train_moe \
   --initialization opt \
   --model-size 1.3b \
@@ -46,7 +43,8 @@ python -m scripts.train_moe \
 
 # Evaluating MoE language models
 
-After you train, 
+This will run eval via submitit.
+
 ```bash
 python scripts/eval_moe.py \
   --model-dir /gscratch/zlab/sg01/opt_ft/moe/moe/finetune.moe.c4.nexperts_32.init_opt.0edr.mu7869.wu0.bsz2.uf4.fp16adam.rs1234.lr2e-05.pat_10000.ngpu32/ \ # change this to trained model path

@@ -12,6 +12,8 @@ if __name__ == '__main__':
     parser.add_argument("--model-dir", type=str)
     parser.add_argument('--data-dir', type=str, default='/gscratch/zlab/sg01/data/c4/')
     parser.add_argument("--num-experts", type=int)
+    parser.add_argument("--num-gpus", type=int)
+    parser.add_argument("--num-nodes", type=int)
     parser.add_argument("--run", choices=['slurm', 'local'])
     parser.add_argument("--partition", type=str, default='ckpt')
     parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
@@ -23,6 +25,8 @@ if __name__ == '__main__':
     
     command = f"bash /gscratch/zlab/sg01/fairseq/scripts/eval_lm.sh \
                 {args.model_dir} \
+                {args.num_gpus} \
+                {args.num_nodes} \
                 {args.num_experts} \
                 {args.run} \
                 {args.checkpoint_prefix} \

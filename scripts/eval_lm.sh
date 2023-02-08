@@ -1,13 +1,15 @@
 
 MODEL_DIR=$1
-NUM_EXPERTS=$2
-SLURM=$3
-CHECKPOINT_TO_PROCESS=$4
-PARTITION=$5
-CONSTRAINT=$6
-DATA_PATH=$7
-ACCOUNT=$8
-JOB_FOLDER=$9
+NUM_GPUS=$2
+NUM_NODES=$3
+NUM_EXPERTS=$4
+SLURM=$5
+CHECKPOINT_TO_PROCESS=$6
+PARTITION=$7
+CONSTRAINT=$8
+DATA_PATH=$9
+ACCOUNT=${10}
+JOB_FOLDER=${11}
 
 echo $CHECKPOINT_TO_PROCESS
 
@@ -41,6 +43,7 @@ python -m fairseq_cli.eval_lm \
   --partition $PARTITION \
   --constraint $CONSTRAINT \
   --account $ACCOUNT \
-  --num-experts $NUM_EXPERTS \
+  --num-gpus $NUM_GPUS \
+  --num-nodes $NUM_NODES \
   --job-folder $JOB_FOLDER \
   $SUBMITIT_PHRASE

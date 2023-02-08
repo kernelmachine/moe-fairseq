@@ -18,11 +18,13 @@ if __name__ == '__main__':
     parser.add_argument("--fastforward-to-epoch", type=int, default=None)
 
     parser.add_argument("--partition", type=str)
-    parser.add_argument("--constraint", type=str)
+    parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
 
     parser.add_argument("--max-steps", type=int, default=10000)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--update-freq", type=int, default=1)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--num-experts", type=int, default=32)
 
     args = parser.parse_args()
     
@@ -45,5 +47,7 @@ if __name__ == '__main__':
                 {args.constraint} \
                 {end_lr} \
                 {args.fastforward_to_epoch} \
+                {args.batch_size} \
+                {args.num_experts} \
                 "
     subprocess.run(command.split(), check=True, text=True)

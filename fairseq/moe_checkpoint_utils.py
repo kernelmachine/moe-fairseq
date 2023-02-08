@@ -15,7 +15,7 @@ from fairseq.file_io import torch_load_cpu
 from typing import List, Dict
 from fairscale.nn.data_parallel.fsdp_optim_utils import is_singleton_tensor
 from pathlib import Path
-from copy import copy
+import copy
 from omegaconf import OmegaConf
 
 OPT_KEY = 'last_optimizer_state'
@@ -129,44 +129,13 @@ def merge_multi_local_expert_states(expert_states: List[Dict]) -> Dict:
     return merged_expert_state
 
 
-def initialize_moe_from_opt(output_dir, num_experts):
-
+def initialize_moe_from_opt(output_dir, num_experts_per_gpu, num_gpus):
+    num_experts = num_experts_per_gpu * num_gpus
     if Path(output_dir).exists() and len(list(Path(output_dir).glob("*.pt"))) > 1:
         logger.info("output directory not empty, skipping OPT initialization...")
         return
-    
-    # get OPT state
-    #     
-    # # get an example state_dict from an MOE model
-    # # shared_state_dict = torch.load('/gscratch/zlab/sg01/en_moe_lm_15b/model-shared.pt')
-    # 
-
-    # 
-
-
-    # for key in opt_state['model'].keys():
-
-    # expert_state_dict['model'] = {x: y for x,y in expert_state_dict['model'].items() if 'experts.0.' in x}
-    # for key in expert_state_dict['model']:
-    #     opt_key = re.sub(".moe_layer.experts.\d+", '', key)
-        
-    #     expert_state_dict['model'][key] = opt_state['model'][opt_key].clone()
-    #     _ = opt_state['model'].pop(opt_key)
-
-    # shared_state_dict = opt_state.copy()
-    
-    # # for key in shared_state_dict['model']:
-    #     # shared_state_dict['model'][key] = opt_state[key]
-
-    # expert_state_dict['cfg']['model']['moe_expert_count'] = num_experts
-    # # shared_state_dict['cfg']['model']['moe_expert_count'] = num_experts
-    
-    # from fairseq import pdb; pdb.set_trace()
-    # shared_state = {}
-    # expert_state = {}
-    # opt_state = torch.load('/gscratch/zlab/sg01/opt_ft/dense/1_cluster/finetune.opt.c4.1.3b.0edr.mu10000.wu0.bsz8.uf1.fp16adam.rs1234.lr2e-05.pat_10000.ngpu4/consolidated.pt')
+   
     path_to_opt = '/gscratch/zlab/sg01/opt/1.3b/consolidated.pt'
-    # path_to_opt = '/gscratch/zlab/sg01/opt_ft/dense/1_cluster/finetune.opt.c4.1.3b.0edr.mu10000.wu0.bsz8.uf1.fp16adam.rs1234.lr2e-05.pat_10000.ngpu4/consolidated.pt'
     logger.info(f"initializing MoE from OPT checkpoint at {path_to_opt}....")
     opt_state = torch.load(path_to_opt)
     opt_state['extra_state']["train_iterator"]['epoch'] = 1
@@ -180,17 +149,23 @@ def initialize_moe_from_opt(output_dir, num_experts):
         orig_model_cfg[key] = expert_cfg['model'][key]
     orig_model_cfg['moe_expert_count'] = num_experts
     opt_state['cfg']['model'] = OmegaConf.create(orig_model_cfg)
-
+    
     # experts = {}
     keys = list(opt_state['model'].keys())
     for key in keys:
         layer = re.findall(r"decoder.layers.(\d+)", key)
         if layer and ("fc1" in key or "fc2" in key) and int(layer[0]) % 2 != 0:
+            new_keys = []
             if "fc1" in key:
-                new_key = re.sub(".fc1", '.moe_layer.experts.0.fc1', key)
+                for i in range(num_experts_per_gpu):
+                    new_keys.append(re.sub(".fc1", f'.moe_layer.experts.{i}.fc1', key))
             elif "fc2" in key:
-                new_key = re.sub(".fc2", '.moe_layer.experts.0.fc2', key)
-            opt_state['model'][new_key] = opt_state['model'].pop(key)
+                for i in range(num_experts_per_gpu):
+                    new_keys.append(re.sub(".fc2", f'.moe_layer.experts.{i}.fc2', key))
+            for new_key in new_keys:
+                opt_state['model'][new_key] = opt_state['model'][key]
+            del opt_state['model'][key]  
+    
 
     num_layers = opt_state['cfg']['model'].decoder_layers
     hidden_dim = opt_state['cfg']['model'].decoder_embed_dim
@@ -198,18 +173,39 @@ def initialize_moe_from_opt(output_dir, num_experts):
         if layer % 2 != 0:
             opt_state['model'][f'decoder.layers.{layer}.moe_layer.gate.wg.weight'] = torch.rand(num_experts, hidden_dim).float().half()
     
-    expert_state = opt_state.copy()
-    shared_state = opt_state.copy()
-    for key in opt_state['model'].keys():
-        if "expert" in key:
-            expert_state['model'][key] = opt_state['model'][key]
-        else:
-            shared_state['model'][key] = opt_state['model'][key]
+    expert_state = copy.deepcopy(opt_state)
+
+    shared_state = copy.deepcopy(opt_state)
+
+    
+    
     shared_state['model']['decoder.output_projection.weight'] = opt_state['model']['decoder.embed_tokens.weight']
+
+    # for key in opt_state['model'].keys():
+    #     if "expert" in key:
+    #         expert_state['model'][key] = opt_state['model'][key]
+    #     else:
+    #         shared_state['model'][key] = opt_state['model'][key]
+
+    total_counts = len(expert_state['model'])
+    keys_ = [x for x in list(expert_state['model'].keys()) if 'experts' not in x]
+    for key in keys_:
+        del expert_state['model'][key]
+        assert len(expert_state['model']) == total_counts - 1 
+        total_counts = len(expert_state['model'])
+
+    keys_ = [x for x in list(shared_state['model'].keys()) if 'experts' in x]
+    
+    total_counts = len(shared_state['model'])
+    for key in keys_:
+        del shared_state['model'][key]
+        assert len(shared_state['model']) == total_counts - 1 
+        total_counts = len(shared_state['model'])
+    
     if not Path(output_dir).is_dir():
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    for i in range(num_experts):
+    for i in range(num_gpus):
         torch.save(shared_state, Path(output_dir) / f"checkpoint_last-shared-shard{i}.pt")
         torch.save(expert_state, Path(output_dir) / f"checkpoint_last-rank-{i}-shard{i}.pt")
     

@@ -71,7 +71,8 @@ def main(cfg: FairseqConfig) -> None:
     if cfg.model.moe_initialize_from_opt:
         from fairseq.moe_checkpoint_utils import initialize_moe_from_opt
         # initialize with OPT checkpoint
-        initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count)
+        initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count // torch.distributed.get_world_size(), torch.distributed.get_world_size())
+        # initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count)
 
 
     checkpoint_utils.verify_checkpoint_directory(cfg.checkpoint.save_dir)

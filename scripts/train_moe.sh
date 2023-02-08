@@ -11,7 +11,8 @@ PARTITION=${10}
 CONSTRAINT=${11}
 END_LR=${12}
 FASTFORWARD=${13}
-
+BATCH_SIZE=${14}
+NUM_EXPERTS=${15}
 # TODO(margaret): change this
 CHECKPOINT_DIR="/gscratch/zlab/$USER/opt_ft/moe/";
 PROJECT="finetune.moe.$DATA";
@@ -47,15 +48,16 @@ fi;
 
 
 # reducing batch size to 2
-if [ $PARTITION != "gpu-a40" ]; then
-    BS=2;
-    UF=$(( ${UPDATE_FREQ}  * 4 ));
-else
-    BS=8;
-    UF=${UPDATE_FREQ};
-fi;
+# if [ $PARTITION != "gpu-a40" ]; then
+#     BS=2;
+#     UF=$(( ${UPDATE_FREQ}  * 4 ));
+# else
+BS=${BATCH_SIZE};
+UF=${UPDATE_FREQ};
+# fi;
 
-NUM_EXPERTS=$(( ${NUM_GPUS}  * ${NUM_NODES} ));
+#NUM_EXPERTS=$(( ${NUM_GPUS}  * ${NUM_NODES} ));
+# NUM_EXPERTS=32;
 
 python -m fairseq.fb_sweep.ft_stream \
     -n $NUM_NODES \

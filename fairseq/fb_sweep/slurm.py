@@ -108,7 +108,6 @@ def run_setup(args, config, dry_run):
     if args.use_jobarray:
         save_dir = os.path.join(
             args.checkpoints_dir,
-            args.jobarray_name,
             f"{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}",
         )
     else:
@@ -123,7 +122,7 @@ def run_setup(args, config, dry_run):
 
     # create slurm log dir for job arrays
     if args.use_jobarray:
-        slurm_dir = os.path.join(args.checkpoints_dir, args.jobarray_name, "slurm_logs")
+        slurm_dir = os.path.join(args.checkpoints_dir,  "slurm_logs")
         if not os.path.exists(slurm_dir):
             if not dry_run(f"create directory: {slurm_dir}"):
                 os.makedirs(slurm_dir)

@@ -286,8 +286,8 @@ def load_expert_state(local_path):
         expert_states = []
         for expert_rank in range(start_rank, start_rank + local_expert_count):
             fname = re.sub(
-                'rank-[0-9]+',
-                'rank-{0}'.format(expert_rank),
+                'rank-[0-9]+-shard[0-9]+',
+                'rank-{0}-shard{0}'.format(expert_rank),
                 local_path,
             )
             expert_states.append(torch_load_cpu(fname))

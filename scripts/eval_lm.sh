@@ -25,6 +25,8 @@ else
   SUBMITIT_PHRASE="";
 fi;
 
+export LOCAL_RANK=0
+
 python -m fairseq_cli.eval_lm \
   $DATA_PATH \
   --ddp-backend c10d \
@@ -45,5 +47,6 @@ python -m fairseq_cli.eval_lm \
   --account $ACCOUNT \
   --num-gpus $NUM_GPUS \
   --num-nodes $NUM_NODES \
+  --distributed-port 56000 \
   --job-folder $JOB_FOLDER \
   $SUBMITIT_PHRASE

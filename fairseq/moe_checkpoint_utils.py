@@ -271,7 +271,7 @@ def initialize_moe_from_opt(output_dir, num_experts_per_gpu, num_gpus):
 
 
 def load_expert_state(local_path):
-    checkpoint_files_count = len(glob(re.sub('rank-[0-9]+', 'rank-*', local_path)))
+    checkpoint_files_count = len(glob(re.sub('rank-[0-9]+-shard[0-9]+', 'rank-*-shard*', local_path)))
     world_size = distributed_utils.get_data_parallel_world_size()
     rank = distributed_utils.get_data_parallel_rank()
     if world_size < checkpoint_files_count:

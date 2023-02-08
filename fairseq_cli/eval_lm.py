@@ -564,7 +564,8 @@ def cli_main():
         executor.submit(func, convert_namespace_to_omegaconf(args))
         logger.info(f"launched {num_gpus_per_node * nodes} GPU evaluation job via submitit")
     else:
-        call_main(convert_namespace_to_omegaconf(args), main)
+        distributed_utils.call_main(convert_namespace_to_omegaconf(args), main)
+        # call_main(convert_namespace_to_omegaconf(args), main)
     
 
 

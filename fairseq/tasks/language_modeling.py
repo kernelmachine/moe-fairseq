@@ -43,6 +43,19 @@ class LanguageModelingConfig(FairseqDataclass):
     data: Optional[str] = field(
         default=None, metadata={"help": "path to data directory"}
     )
+    # Begin args from StreamingLanguageModelingConfig
+    vocab_filename: Optional[str] = field(
+        default="", metadata={"help": "path to bpe-vocab.json"}
+    )
+    merges_filename: Optional[str] = field(
+        default="", metadata={"help": "path to bpe-merges.txt"}
+    )
+    end_of_document_symbol: Optional[str] = field(
+        default="</s>", metadata={"help": "symbol indicating an end-of-document"}
+    )
+    final_vocab_size: Optional[int] = field(
+        default=None, metadata={"help": "force vocab size to this"}
+    )  # End of args from StreamingLanguageModelingConfig
     sample_break_mode: SAMPLE_BREAK_MODE_CHOICES = field(
         default="none",
         metadata={

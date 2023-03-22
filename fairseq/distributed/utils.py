@@ -45,6 +45,15 @@ logger = logging.getLogger(__name__)
 def is_master(cfg: DistributedTrainingConfig):
     return cfg.distributed_rank == 0
 
+
+def global_barrier():
+    """
+    A global barrier that all workers in all process groups must wait for.
+    """
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier(get_global_group())
+        
+
 def _spawn_helper(main, cfg, kwargs):
     """
     Perform a fork() to many processes.

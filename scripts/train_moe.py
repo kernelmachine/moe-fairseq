@@ -22,8 +22,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--max-steps", type=int, default=10000)
     parser.add_argument("--lr", type=float, default=None)
-    parser.add_argument("--update-freq", type=int, default=1)
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--update-freq", "-uf", type=int, default=1)
+    parser.add_argument("--batch-size", "-bs", type=int, default=8)
     parser.add_argument("--num-experts", type=int, default=32)
 
     args = parser.parse_args()
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # TODO(suchin): removed this
     # end_lr = learning_rate * 0.1
     end_lr = 0.0
-    command = f"bash /gscratch/zlab/sg01/fairseq/scripts/train_moe.sh \
+    command = f"bash /private/home/margaretli/gitfiles/moe-fairseq/scripts/train_moe.sh \
                 {args.initialization} \
                 {args.lr} \
                 {args.num_nodes} \

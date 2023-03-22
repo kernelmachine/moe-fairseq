@@ -352,7 +352,7 @@ class Trainer(object):
 
     @property
     def moe_initialize_from_opt(self):
-        return getattr(self.cfg.model, "moe_initialize_from_opt", False)
+        return getattr(self.cfg.model, "moe_initialize_from_opt", None)
 
     @property
     def is_base_moe(self) -> bool:
@@ -671,6 +671,7 @@ class Trainer(object):
             epoch=epoch,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
+            skip_remainder_batch=True,
         )
         self.reset_dummy_batch(batch_iterator.first_batch)
         return batch_iterator

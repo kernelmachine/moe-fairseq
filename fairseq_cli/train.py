@@ -71,7 +71,7 @@ def main(cfg: FairseqConfig) -> None:
     if cfg.model.moe_initialize_from_opt:
         from fairseq.moe_checkpoint_utils import initialize_moe_from_opt
         # initialize with OPT checkpoint
-        initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count // torch.distributed.get_world_size(), torch.distributed.get_world_size())
+        initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count // torch.distributed.get_world_size(), torch.distributed.get_world_size(), cfg.model.moe_initialize_from_opt)
         # initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count)
 
 
@@ -201,11 +201,13 @@ def main(cfg: FairseqConfig) -> None:
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
-
+        # TODO @margaretli
+        print('task.has_sharded_data("train")', task.has_sharded_data("train"))
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
-            load_dataset=task.has_sharded_data("train"),
+            # load_dataset=task.has_sharded_data("train"),
+            load_dataset=True,
             # don't cache epoch iterators for sharded datasets
             disable_iterator_cache=task.has_sharded_data("train"),
         )
@@ -268,7 +270,8 @@ def train(
     itr = iterators.StreamingGroupedIterator(
                     itr,
                     update_freq,
-                    skip_remainder_batch=False,
+                    # skip_remainder_batch=False,
+                    skip_remainder_batch=True,
     )
 
 

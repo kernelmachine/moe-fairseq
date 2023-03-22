@@ -178,7 +178,8 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
             raise ImportError("Please install tokenizers with: pip install tokenizers")
 
         self.tokenizer = ByteLevelBPETokenizer.from_file(
-            "/gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json", "/gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt"
+            # "/gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json", "/gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt"
+            args.vocab_filename, args.merges_filename,
         )
 
 
@@ -257,6 +258,10 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         return cls(args)
+    
+    def has_sharded_data(self, split):
+        # TODO @margaretli change this to dynamically recognize cases where num_shards > 1
+        return True
 
     def _tokenize_one_json(self, json):
         text = json["text"]
@@ -353,8 +358,10 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
             shards[int(shard_id)] = shard_id
         assert min(shards.keys()) == 0
         assert max(shards.keys()) == len(shards) - 1
-
+        print('len shards', len(shards))
         cur_shard_str = shards[(epoch - 1) % len(shards)]
+        print('epoch', epoch)
+        print('cur_shard_str', cur_shard_str)
         return cur_shard_str
 
     def load_dataset(self, split: str, epoch=1, combine=False, **kwargs):
@@ -414,6 +421,7 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
             dataset_name_to_index[f"{cur_shard_str}/{file}"] = dataset_index_counter
             dataset_index_to_name[dataset_index_counter] = os.path.join(self.args.data, split, cur_shard_str, file)
             dataset_index_counter += 1
+        
 
         assert len(datasets) > 0
         if self.args.multicorpus_sampling_alpha != 1:

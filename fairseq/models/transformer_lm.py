@@ -209,10 +209,10 @@ class TransformerLanguageModelConfig(FairseqDataclass):
             "help": "Use FP32 computations in MoE top2 gating function"
         }
     )
-    moe_initialize_from_opt: bool = field(
-        default=False,
+    moe_initialize_from_opt: str = field(
+        default="",
         metadata={
-            "help": "Initialize MOE weights from OPT"
+            "help": "OPT weights path from which we nitialize MOE weights"
         }
     )
 

@@ -273,7 +273,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     return extra_state, epoch_itr
 
 
-def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, moe_initialize_from_opt=False, fast_forward=None):
+def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, moe_initialize_from_opt=None, fast_forward=None):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility).
 
     If doing single-GPU training or if the checkpoint is only being loaded by at
@@ -351,12 +351,6 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is
             overwrite_args_by_name(state["cfg"], arg_overrides)
 
     state = _upgrade_state_dict(state)
-
-
-    if fast_forward:
-        state['extra_state']["train_iterator"]['epoch'] = fast_forward
-        state['extra_state']['train_iterator']['iterations_in_epoch'] = 0
-
 
     return state
 

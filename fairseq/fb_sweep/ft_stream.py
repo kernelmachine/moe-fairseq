@@ -34,7 +34,7 @@ for _cluster, _folder in DATA_LOCATIONS.items():
             from fairseq.fb_sweep.dependency_checks import *  # noqa
         break
 
-DATA_LOCATIONS[ComputeEnvs.FAIR] = "/gscratch/zlab/sg01/data/" # TODO(margaret): change this
+DATA_LOCATIONS[ComputeEnvs.FAIR] = "/checkpoint/margaretli/data/" # TODO(margaret): change this
 # DATA_LOCATIONS[ComputeEnvs.FAIR] = "/datasets01/"
 DATA_LOCATIONS[ComputeEnvs.AWS] = "/fsx-mudslide/rpasunuru/data"
 DATA_LOCATIONS[ComputeEnvs.AZURE] = "/shared/home/sviyer/data"
@@ -43,7 +43,7 @@ PRETRAIN_MODEL_LOCATIONS = {
     ComputeEnvs.FAIR: {
         "125m": "/gscratch/zlab/sg01/opt/125m/checkpoint_last.pt", 
         "350m": "/checkpoint/victorialin/opt_models/350M_gptz/checkpoint_last.pt",
-        "1.3b": "/gscratch/zlab/sg01/opt/1.3b/checkpoint_last.pt", # TODO(margaret): change this
+        "1.3b": "/checkpoint/rpasunuru/opt_models/1.3B_gptz/checkpoint_last.pt", # TODO(margaret): change this
         "resharded_1.3b": "/checkpoint/suching/opt_models/resharded_1.3b/checkpoint_last.pt",
         "6.7b": "/checkpoint/victorialin/opt_models/6.7B_gptz/checkpoint_last.pt",
         #"1.3b": "/checkpoint/suching/opt_ft/dense/finetune.opt.s2orc_data.1.3b.0edr.mu10000.wu0.bsz8.fp16adam.rs1234.lr2e-05.pat_10.ngpu4/checkpoint_1_10000.pt",
@@ -418,11 +418,11 @@ def get_grid(args):
     else:
         H("--task", "streaming_finetune_language_modeling")
     # TODO(margaret): change this
-    H("--vocab-filename", os.path.join("/gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json"))# , save_dir_key=lambda _: "gpt2")
+    H("--vocab-filename", os.path.join("/checkpoint/margaretli/data/opt/120321/tokenizers/gpt2-vocab.json"))# , save_dir_key=lambda _: "gpt2")
     # TODO(margaret): change this
     H(
         "--merges-filename",
-        os.path.join("/gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt"),
+        os.path.join("/checkpoint/margaretli/data/opt/120321/tokenizers/gpt2-merges.txt"),
     )
     H("--sample-break-mode", args.sbm) # , save_dir_key=lambda val: f"sbm_{val}")
 
@@ -459,7 +459,7 @@ def get_grid(args):
     H("--moe-freq", 2)
     H("--moe-gating-use-fp32")
     if args.moe_initialize_from_opt:
-        H("--moe-initialize-from-opt", save_dir_key=lambda val: f"init_opt")
+        H("--moe-initialize-from-opt", args.moe_initialize_from_opt, save_dir_key=lambda val: f"init_opt")
     H("--moe-second-expert-policy", "all")
     H("--moe-normalize-expert-grad", "sqrt_world_size")
     H("--moe-eval-capacity-token-fraction", -1.0)
@@ -483,7 +483,7 @@ def get_grid(args):
 
     H("--tokens-per-sample", args.tps) #, save_dir_key=lambda val: f"tps_{val}")
     H("--ddp-backend", "fully_sharded")
-    H("--save-async")
+    # H("--save-async")
     # H("--quiet")
 
     if args.max_valid_steps > 0:
@@ -627,7 +627,7 @@ def add_args(parser):
     parser.add_argument("--nw", type=int, default=0)
 
     parser.add_argument("--moe-num-experts", type=int)
-    parser.add_argument("--moe-initialize-from-opt", action='store_true')
+    parser.add_argument("--moe-initialize-from-opt", type=str, default="")
     parser.add_argument("--label-loss", action="store_true")
     parser.add_argument("--embdr", action="store_true")
     parser.add_argument("--eps", type=int, nargs="+", default=[-1])

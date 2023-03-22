@@ -17,13 +17,10 @@ import numpy as np
 import torch
 import pandas as pd
 from tqdm.auto import tqdm
-import pickle
 
+import fairseq.distributed.utils as distributed_utils
 
 logger = logging.getLogger(__name__)
-
-
-
 
 
 class JsonlDataset(torch.utils.data.Dataset):
@@ -42,10 +39,24 @@ class JsonlDataset(torch.utils.data.Dataset):
     Note that only the "text" key is used.
     """
 
-    def __init__(self, path: str, tokenizer_func: Optional[Callable] = None, tokenizer=None, include_path_infos_in_jsonl_dataset: bool = False, recache=False, path_to_clusters=None, train_cluster=None, num_clusters=None, random_clusters=False):
+    def __init__(
+        self,
+        path: str,
+        tokenizer_func: Optional[Callable] = None,
+        tokenizer=None,
+        recache=False,
+        epoch=1,
+        data_subshard_count=1,
+        include_path_infos_in_jsonl_dataset: bool = False, 
+        path_to_clusters=None, 
+        train_cluster=None, 
+        num_clusters=None, 
+        random_clusters=False
+    ):
         self.path = path
         self.tokenizer_func = tokenizer_func
         self.tokenizer = tokenizer
+
         self.include_path_infos_in_jsonl_dataset = include_path_infos_in_jsonl_dataset
         self.clusters = {}
         self.random_clusters = random_clusters
@@ -57,15 +68,27 @@ class JsonlDataset(torch.utils.data.Dataset):
                         l = json.loads(line)
                         self.clusters[l['sp_id']] = int(l['cluster'])
         self.train_cluster = train_cluster
+
         self.threadlocal = threading.local()
+        # resolve symlinks to for cached indexes. This lets us re-use indexes
+        # across our experiments using differently composed datasets
+        resolved_path = Path(path).resolve()
         # TODO(susan): Fix this fairseq reference. _build_index fails otherwise.
-        self.cache = Path(f"{path}.fairseq.idx.npy")
+        self.cache = Path(f"{resolved_path}.fairseq.idx.npy")
+        # only build the cache in on the primary worker to prevent overloading nfs
+        if distributed_utils.get_global_rank() != 0:
+            distributed_utils.global_barrier()
         if self.cache.exists() and not recache:
-            self.offsets = np.load(self.cache)
-        else:
+            logger.info(f"Loading up cache: {self.cache}")
+            self.offsets = np.load(self.cache, allow_pickle=True)
+        elif distributed_utils.get_global_rank() == 0:
             self.offsets = self._build_index(path)
-            np.save(self.cache, self.offsets)
-        # print(f'n offsets: {len(self.offsets)}')
+            np.save(self.cache, self.offsets, allow_pickle=False)
+        if distributed_utils.get_global_rank() == 0:
+            distributed_utils.global_barrier()
+
+        self.epoch = epoch
+        self.data_subshard_count = data_subshard_count
 
     def _get_mmap(self):
         if not hasattr(self.threadlocal, "handles"):
@@ -82,22 +105,31 @@ class JsonlDataset(torch.utils.data.Dataset):
                     "rereading the entire file, making performance too slow."
                 )
         return self.threadlocal.handles[-1]
-
-    def get_cluster(self, item):
-        if self.random_clusters:       
-            return np.random.choice(2, 1)
-        else:
-            return self.clusters[item['sp_id']]
-        
-
+    
 
     def __getitem__(self, idx):
-        if idx < 0 or idx >= len(self):
+        # Convert 0 based idx to subshard based idx
+        # For instance, for a data_subshard_count of 3 and epoch number of 1,
+        # subshard_idx goes like 0, 3, 6, 9 ...
+        # For more details, see https://github.com/facebookresearch/metaseq/issues/166
+        subshard_idx = self._get_subshard_id() + idx * self.data_subshard_count
+        if subshard_idx < 0 or subshard_idx >= len(self.offsets):
             raise IndexError
         f = self._get_mmap()
-        f.seek(self.offsets[idx])
+        position = self.offsets[subshard_idx]
+        f.seek(position)
         item = f.readline().decode("utf-8")
-        item = json.loads(item)
+        try:
+            item = json.loads(item)
+        except json.decoder.JSONDecodeError:
+            raise json.decoder.JSONDecodeError(
+                doc=self.path,
+                pos=position,
+                msg=(
+                    f"Error while loading JSONL line in file {self.path} at byte "
+                    f"{position}. Contents of line:\n{item}"
+                ),
+            )
         if self.clusters or self.random_clusters:
             if not self.random_clusters:
                 cluster = self.clusters.get(f"{self.path}|{idx}", -1)
@@ -111,8 +143,6 @@ class JsonlDataset(torch.utils.data.Dataset):
             cluster = -1
         if self.tokenizer_func is not None:
             item = self.tokenizer_func(item)
-        
-        # v = self.context_clusterer(item.tolist())
         if self.include_path_infos_in_jsonl_dataset:
             return {
                 "item": item,
@@ -126,7 +156,24 @@ class JsonlDataset(torch.utils.data.Dataset):
             }
 
     def __len__(self):
-        return len(self.offsets)
+        # Virtual length of the dataset depends on the epoch number if the number of documents
+        # is not perfectly divisible by the data_subshard_count
+        if len(self.offsets) % self.data_subshard_count == 0:
+            return len(self.offsets) // self.data_subshard_count
+        else:
+            # We are left with len(self.offsets) % self.data_subshard_count extra documents at the end
+            extra_document_count = len(self.offsets) % self.data_subshard_count
+
+            # Depending on the subshard id, these extra documents would be included or not
+            if self._get_subshard_id() + 1 <= extra_document_count:
+                return (len(self.offsets) // self.data_subshard_count) + 1
+            else:
+                return len(self.offsets) // self.data_subshard_count
+
+    def _get_subshard_id(self):
+        # Returns the subshard_id, which goes from 0 to self.data_subshard_count - 1 (0 indexed)
+        # and then wraps around if the epoch id goes beyond the data_subshard_count
+        return (self.epoch - 1) % self.data_subshard_count
 
     def _build_index(self, path: str):
         """Build index of start positions of each line."""
@@ -135,12 +182,14 @@ class JsonlDataset(torch.utils.data.Dataset):
         f.seek(0)
         offsets = []
         cur = 0
+        line_num = 0
         while True:
             line = f.readline()
             if line == b"":
                 break
             offsets.append(cur)
             cur += len(line)
+            line_num += 1
         return offsets
 
     def __setstate__(self, state):
@@ -189,3 +238,6 @@ if __name__ == "__main__":
 
     for f in tqdm(list(glob(args.pattern))):
         JsonlDataset(f, recache=True)
+
+
+

@@ -341,8 +341,8 @@ def gen_sbatch_command_and_str(
         args.cpus_per_task,
         "--output",
         train_log,
-        "--account",
-        "zlab", # TODO(margaret): change this
+        # "--account",
+        # "zlab", # TODO(margaret): change this
         "--error",
         train_stderr,
         "--open-mode",

@@ -474,6 +474,10 @@ def get_shared_folder() -> Path:
         p = Path(f"/gscratch/zlab/{user}/experiments")
         p.mkdir(exist_ok=True)
         return p
+    elif Path("/private/").is_dir():
+        p = Path(f"/private/home/{user}/experiments")
+        p.mkdir(exist_ok=True)
+        return p
     raise RuntimeError("No shared folder available")
 
 
@@ -526,7 +530,7 @@ def cli_main():
     parser.add_argument("--submitit", action='store_true')
     parser.add_argument("--partition", type=str, default='ckpt')
     parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
-    parser.add_argument("--account", type=str, default='zlab')
+    parser.add_argument("--account", type=str, default=None)
     parser.add_argument("--num-gpus", type=int)
     parser.add_argument("--num-nodes", type=int)
     parser.add_argument("--job-folder", default="/gscratch/zlab/sg01/submitit_evals/")
@@ -551,8 +555,11 @@ def cli_main():
                 # Below are cluster dependent parameters
                 slurm_partition=args.partition,
                 slurm_constraint=args.constraint,
-                slurm_account=args.account,
                 **kwargs
+            )
+        if args.account and args.account != "None":
+            executor.update_parameters(
+                slurm_account=args.account,
             )
 
         executor.update_parameters(name="eval")

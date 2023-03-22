@@ -14,13 +14,13 @@ FASTFORWARD=${13}
 BATCH_SIZE=${14}
 NUM_EXPERTS=${15}
 # TODO(margaret): change this
-CHECKPOINT_DIR="/gscratch/zlab/$USER/opt_ft/moe/";
+CHECKPOINT_DIR="/checkpoint/$USER/opt_ft/moe/";
 PROJECT="finetune.moe.$DATA";
 
 
 
 if [ $OPT_INIT == "opt" ]; then 
-    INIT_PHRASE="--moe-initialize-from-opt"
+    INIT_PHRASE="--moe-initialize-from-opt /checkpoint/rpasunuru/opt_models/1.3B_gptz/consolidated.pt"
 else
     INIT_PHRASE="";
 fi;
@@ -76,7 +76,7 @@ python -m fairseq.fb_sweep.ft_stream \
     --no-wandb \
     --interval 1000 \
     --save-interval-updates 250 \
-    --keep-interval-updates 1 \
+    --keep-interval-updates 2 \
     --bs $BS \
     --sbm none \
     --partition $PARTITION \
@@ -90,7 +90,7 @@ python -m fairseq.fb_sweep.ft_stream \
     $INIT_PHRASE \
     $LOCAL_PHRASE \
     $JOBARRAY_PHRASE \
-    --script /gscratch/zlab/$USER/fairseq/fairseq_cli/train.py  # TODO(margaret): change this
+    --script /private/home/$USER/gitfiles/moe-fairseq/fairseq_cli/train.py  # TODO(margaret): change this
 
 
 # python -m  fairseq_cli.train \

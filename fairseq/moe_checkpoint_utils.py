@@ -129,19 +129,18 @@ def merge_multi_local_expert_states(expert_states: List[Dict]) -> Dict:
     return merged_expert_state
 
 
-def initialize_moe_from_opt(output_dir, num_experts_per_gpu, num_gpus):
+def initialize_moe_from_opt(output_dir, num_experts_per_gpu, num_gpus, path_to_opt):
     num_experts = num_experts_per_gpu * num_gpus
     if Path(output_dir).exists() and len(list(Path(output_dir).glob("*.pt"))) > 1:
         logger.info("output directory not empty, skipping OPT initialization...")
         return
    
-    path_to_opt = '/gscratch/zlab/sg01/opt/1.3b/consolidated.pt'
     logger.info(f"initializing MoE from OPT checkpoint at {path_to_opt}....")
     opt_state = torch.load(path_to_opt)
     opt_state['extra_state']["train_iterator"]['epoch'] = 1
     opt_state['extra_state']["train_iterator"]['iterations_in_epoch'] = 0
-    expert_state_dict = torch.load('/gscratch/zlab/sg01/en_moe_lm_15b/model-rank-0.pt')
-    stream_ = torch.load('/gscratch/zlab/sg01/en_moe_lm_15b/model-rank-0.pt')
+    expert_state_dict = torch.load('/checkpoint/margaretli/models/en_moe_lm_15b/model-rank-0.pt')
+    stream_ = torch.load('/checkpoint/margaretli/models/en_moe_lm_15b/model-rank-0.pt')
     expert_cfg = expert_state_dict['cfg']
     
     orig_model_cfg = vars(opt_state['cfg']['model'])

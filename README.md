@@ -3,10 +3,10 @@
 ## Setup
 https://github.com/kernelmachine/cbtm/tree/main
 
-### Install fairseq
+### Install moe-fairseq
 ```
 git clone 
-cd fairseq/
+cd moe-fairseq/
 pip install --editable .
 ```
 
@@ -40,8 +40,8 @@ python -m scripts.train_moe \
 After you train, 
 ```bash
 python -m scripts.eval_moe \
---model-dir /checkpoint/margaretli/opt_ft/moe/finetune.moe.opt_data.nexperts_32.init_opt.0edr.mu10000.wu0.bsz2.uf4.fp16adam.rs1234.lr2e-05.pat_10000.ngpu8/ \
---data-dir /checkpoint/margaretli/data/opt/120321/ \
+--model-dir /path/to/models/ \
+--data-dir /path/to/data/ \
 --num-experts 32 \
 --num-gpus 8 \
 --num-nodes 1 \
@@ -49,5 +49,5 @@ python -m scripts.eval_moe \
 --checkpoint-prefix checkpoint_last \
 --partition scavenge \
 --constraint 'volta32gb' \
---job-folder '/private/home/margaretli/submitit_evals' 
+--job-folder '/path/to/eval/logs' 
 ```

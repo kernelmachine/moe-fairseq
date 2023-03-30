@@ -9,10 +9,11 @@ Evaluate the perplexity of a trained language model.
 """
 
 import logging
-import json
 import math
 import os
+import submitit
 import sys
+import time
 from argparse import Namespace
 from textwrap import indent
 from typing import Iterable, List, Optional
@@ -28,12 +29,6 @@ from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter
 from fairseq.sequence_scorer import SequenceScorer
 from omegaconf import DictConfig
-from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
-
-import time
-from pathlib import Path
-import uuid
-import submitit
 
 
 logging.basicConfig(
@@ -175,42 +170,6 @@ def eval_lm(
             running_loss = get_aggregated_loss(score_sum, count)
             running_ppl = 2 ** running_loss
             pbar.set_description(f'ppl: {running_ppl}')
-            # if output_word_probs or output_word_stats:
-            #     w = ""
-            #     word_prob = []
-            #     is_bpe = False
-            #     for i in range(len(tokens)):
-            #         w_ind = tokens[i].item()
-            #         w += source_dictionary[w_ind]
-            #         if bpe_toks is not None and w_ind in bpe_toks:
-            #             w = w[:-bpe_len]
-            #             is_bpe = True
-            #         else:
-            #             word_prob.append((w, pos_scores[i].item()))
-
-            #             next_prob = None
-            #             ind = i + 1
-            #             while ind < len(tokens):
-            #                 if pos_scores[ind].item() != 0:
-            #                     next_prob = pos_scores[ind]
-            #                     break
-            #                 ind += 1
-
-            #             word_stats.setdefault(w, WordStat(w, is_bpe)).add(
-            #                 pos_scores[i].item(), next_prob
-            #             )
-            #             is_bpe = False
-            #             w = ""
-            #     if output_word_probs:
-            #         logger.info(
-            #             str(int(sample_id))
-            #             + " "
-            #             + (
-            #                 "\t".join(
-            #                     "{} [{:2f}]".format(x[0], x[1]) for x in word_prob
-            #                 )
-            #             )
-            #         )
 
     avg_nll_loss = get_aggregated_loss(score_sum, count)  # convert to base 2
     tokens, gpu_seconds_taken, avg_time = get_aggregated_timer_stats(gen_timer)
@@ -326,19 +285,6 @@ def eval_dataset(cfg: DictConfig, eval_split, task, models, start_time):
                 shuffle=False, set_dataset_epoch=False  # use a fixed valid set
                 )
 
-    # itr = task.eval_lm_dataloader(
-    #     dataset=dataset,
-    #     max_tokens=cfg.dataset.max_tokens or 36000,
-    #     batch_size=cfg.dataset.batch_size,
-    #     max_positions=utils.resolve_max_positions(
-    #         *[model.max_positions() for model in models]
-    #     ),
-    #     num_shards=num_shards,
-    #     shard_id=shard_id,
-    #     num_workers=cfg.dataset.num_workers,
-    #     data_buffer_size=cfg.dataset.data_buffer_size,
-    #     context_window=cfg.eval_lm.context_window,
-    # )
     itr = progress_bar.progress_bar(
         itr,
         log_format=cfg.common.log_format,
@@ -468,39 +414,10 @@ def main(cfg: DictConfig, **unused_kwargs):
 
     return results
 
-def get_shared_folder() -> Path:
-    user = os.getenv("USER")
-    if Path("/gscratch/").is_dir():
-        p = Path(f"/gscratch/zlab/{user}/experiments")
-        p.mkdir(exist_ok=True)
-        return p
-    elif Path("/private/").is_dir():
-        p = Path(f"/private/home/{user}/experiments")
-        p.mkdir(exist_ok=True)
-        return p
-    raise RuntimeError("No shared folder available")
-
-
-def get_init_file():
-    # Init file must not exist, but it's parent dir must exist.
-    os.makedirs(str(get_shared_folder()), exist_ok=True)
-    init_file = get_shared_folder() / f"{uuid.uuid4().hex}_init"
-    if init_file.exists():
-        os.remove(str(init_file))
-    return init_file
-
 
 from fairseq import distributed_utils
 
 def call_main(cfg, main, **kwargs):
-    
-    import random
-    # if kwargs['port']:
-    #     cfg.distributed_training.distributed_port = int(kwargs['port'])
-    # else:
-    # if kwargs['use_random_port']:
-        # cfg.distributed_training.distributed_port = np.random.randint(10000,16000)
-    # else:
     cfg.distributed_training.distributed_port = 56000
     if cfg.distributed_training.distributed_init_method is None:
         distributed_utils.infer_init_method(cfg.distributed_training)
@@ -521,23 +438,21 @@ def call_main(cfg, main, **kwargs):
         return main(cfg, **kwargs)
 
 
-
 def runner(x):
     return call_main(x, main)
 
 def cli_main():
     parser = options.get_eval_lm_parser()
     parser.add_argument("--submitit", action='store_true')
-    parser.add_argument("--partition", type=str, default='ckpt')
-    parser.add_argument("--constraint", type=str, default='[rtx6k|a40|a100]')
-    parser.add_argument("--account", type=str, default=None)
+    parser.add_argument("--partition", type=str)
+    parser.add_argument("--constraint", type=str)
+    parser.add_argument("--account", type=str)
     parser.add_argument("--num-gpus", type=int)
     parser.add_argument("--num-nodes", type=int)
-    parser.add_argument("--job-folder", default="/gscratch/zlab/sg01/submitit_evals/")
+    parser.add_argument("--job-folder", type=str)
     args = options.parse_args_and_arch(parser)
 
     if args.submitit:
-        # TODO(margaret): change this
         executor = submitit.AutoExecutor(folder=args.job_folder, slurm_max_num_timeout=30)
         num_gpus_per_node = args.num_gpus
         nodes = args.num_nodes
@@ -564,17 +479,13 @@ def cli_main():
 
         executor.update_parameters(name="eval")
 
-        
-        args.dist_url = get_init_file().as_uri()
         func = lambda x: call_main(x, main)
 
         executor.submit(func, convert_namespace_to_omegaconf(args))
         logger.info(f"launched {num_gpus_per_node * nodes} GPU evaluation job via submitit")
     else:
         distributed_utils.call_main(convert_namespace_to_omegaconf(args), main)
-        # call_main(convert_namespace_to_omegaconf(args), main)
     
-
 
 if __name__ == "__main__":
     cli_main()

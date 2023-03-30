@@ -1,5 +1,3 @@
-import os
-
 from dataclasses import dataclass
 from enum import Enum
 
@@ -19,13 +17,6 @@ class Size:
         return 4 * self.emb_size
 
 
-# from appendix b of https://arxiv.org/pdf/2005.14165.pdf
-# see table 2.1 in https://arxiv.org/pdf/2005.14165.pdf
-
-# assert all sizes make sense, as the gpt-3 paper contains typos
-
-TOTAL_TRAIN_TOKENS = 300e9
-TOTAL_WARMUP_TOKENS = 375e6
 M = 1024 * 1024  # 1 million
 MODEL_SIZES = {
     "8m": Size(4, 128, 2, 64, int(0.5 * M), 2.0e-3, 2),  # tiny
@@ -45,60 +36,17 @@ MODEL_SIZES = {
     "175b": Size(96, 12288, 96, 128, int(0.25 * M), 3e-5, 8),  # GPTZ/GPT-3
 }
 
-# from appendix b of https://arxiv.org/pdf/2005.14165.pdf
-# see table 2.1 in https://arxiv.org/pdf/2005.14165.pdf
-
 for name, size in MODEL_SIZES.items():
     assert size.n_heads * size.d_head == size.emb_size, name
 
 
 class ComputeEnvs(Enum):
     AWS = "aws"
-    AZURE = "azure"
-    RSC = "rsc"
-    FAIR = "fair"
 
 
 DATA_LOCATIONS = {
     # for aws: see https://fb.workplace.com/groups/aws.fair.discuss/posts/921655628752789/?comment_id=921794508738901
     ComputeEnvs.AWS: "/datasets01/gptz",
-    ComputeEnvs.RSC: "/checkpoint/xlmg/data/gptz",
-    ComputeEnvs.AZURE: "/data/gpt-z/opt",
-    ComputeEnvs.FAIR: "/large_experiments/xlmg/data/gptz",
 }
 
-# Base model training data locations
-BASE_MODEL_UNSHARDED_EN_DATA_LOCATIONS = {
-    ComputeEnvs.AWS: "/fsx-mudslide/xlmg/data/bookwiki_CC-NEWS_openwebtext_stories_cc100-mmap2-bin/",
-    ComputeEnvs.AZURE: "/data/xlmg/bookwiki_CC-NEWS_openwebtext_stories_cc100-mmap2-bin",
-    ComputeEnvs.FAIR: "/mmfs1/home//namangoyal/dataset/data-bin/bookwiki_CC-NEWS_openwebtext_stories_cc100-mmap2-bin",
-}
 
-VALID_SUBSETS = [
-    "valid.c4.small/C4",
-    "valid/C4",
-    # # standard corpora
-    "valid/BookCorpusFair",
-    "valid/CommonCrawl",
-    "valid/DM_Mathematics",
-    "valid/Gutenberg_PG-19",
-    "valid/HackerNews",
-    "valid/OpenSubtitles",
-    "valid/OpenWebText2",
-    "valid/USPTO",
-    "valid/Wikipedia_en",
-    "valid/redditflattened",
-    "valid/stories",
-    # dialogue datasets
-    "valid/dialogue_chitchat",  # BST + Convai2 + Empathetic Dialogues
-    "valid/dialogue_knowledge",  # wiz of wiki, wiz of int
-    "valid/dialogue_tod",  # metalwoz, taskmaster2, google_sgd, multiwoz
-    "valid/dialogue_light",  # light_dialog_wild
-    # "dialogue_safety",  # recovering from safety failures. didn't make the cut
-]
-
-
-# API checkpoint locations
-# TODO(roller): don't hardcode this for only azure
-# launch_api downloads the model locally on workers
-CHECKPOINT_FOLDER = os.path.join("/mnt/resource_nvme", os.environ["USER"])

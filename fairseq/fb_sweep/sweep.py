@@ -66,17 +66,11 @@ class hyperparam(object):
 
 
 def get_env_from_args(args):
-    if args.azure:
-        return ComputeEnvs.AZURE
-    elif args.aws:
-        return ComputeEnvs.AWS
-    elif args.fair:
+    if args.fair:
         return ComputeEnvs.FAIR
-    elif args.rsc:
-        return ComputeEnvs.RSC
     else:
         raise NotImplementedError(
-            "Env not passed in! Please pass in one of: --azure, --aws, --fair, --rsc"
+            "Env not passed in!"
         )
 
 
@@ -218,25 +212,13 @@ def _get_args(add_extra_options_func=None, input_args: Optional[List[str]] = Non
     )
 
     # Env flags
-    parser.add_argument("--azure", action="store_true", help="running on azure")
-    parser.add_argument("--aws", action="store_true", help="running on aws")
     parser.add_argument("--fair", action="store_true", help="running on fair")
-    parser.add_argument("--rsc", action="store_true", help="running on rsc")
-
-    # Azure specific flag
-    parser.add_argument(
-        "--full-azure-upload-path",
-        default=None,
-        help="Azure blob storage SAS URL",
-    )
-
-    parser.add_argument(
-        "--azure-folder-auto-name",
-        action="store_true",
-        help="Automatically name azure folder",
-    )
 
     # Following args have env specific defaults.
+    parser.add_argument(
+        "--account",
+        help="slurm account to run on",
+    )
     parser.add_argument(
         "--partition",
         help="slurm partition to run on",
@@ -263,11 +245,6 @@ def _get_args(add_extra_options_func=None, input_args: Optional[List[str]] = Non
         add_extra_options_func(parser)
     args = parser.parse_args(input_args)
 
-    # Env check
-    assert (
-        sum([args.azure, args.aws, args.fair, args.rsc]) == 1
-    ), "Must pass an env, and only one env (--azure, --aws, --fair, or --rsc)!"
-
     if args.use_jobarray:
         if args.jobarray_name is None:
             ja_hash = datetime.datetime.now().isoformat().replace(":", "_")
@@ -282,92 +259,19 @@ def _get_args(add_extra_options_func=None, input_args: Optional[List[str]] = Non
 
 
 def _modify_arg_defaults_based_on_env(env, args):
-    # TODO(susan): move all this default logic into separate config file
     default_partition = None
-    if env == ComputeEnvs.FAIR:
-        default_partition = "learnfair"
-    elif env == ComputeEnvs.RSC:
-        default_partition = "learn"
-
     default_prefix = ""
-    if env == ComputeEnvs.AZURE:
-        default_prefix = "/shared/home"
-    elif env == ComputeEnvs.AWS:
-        default_prefix = "/checkpoints"
-    elif env == ComputeEnvs.FAIR:
-        default_prefix = "/checkpoint"
-    elif env == ComputeEnvs.RSC:
-        default_prefix = "/checkpoint/xlmg"
-
-    if env == ComputeEnvs.FAIR or env == ComputeEnvs.RSC:
-        default_checkpoint_dir = os.path.join(
+    default_checkpoint_dir = os.path.join(
             default_prefix, os.environ["USER"], str(datetime.date.today())
         )
-    else:
-        default_checkpoint_dir = os.path.join(
-            default_prefix,
-            os.environ["USER"],
-            "checkpoints",
-            str(datetime.date.today()),
-        )
-
-    default_cpu_per_task = None
-    if env == ComputeEnvs.AZURE or env == ComputeEnvs.AWS:
-        default_cpu_per_task = 12
-    elif env == ComputeEnvs.FAIR:
-        default_cpu_per_task = 5
-    elif env == ComputeEnvs.RSC:
-        default_cpu_per_task = 32
-
+    default_cpu_per_task = 5
     default_cpu_bind = "none"
-    # if env == ComputeEnvs.AZURE:
-    #     default_cpu_bind = "mask_cpu:ffffff000000,ffffff000000,ffffff,ffffff,ffffff000000000000000000,ffffff000000000000000000,ffffff000000000000,ffffff000000000000"
-    # elif env == ComputeEnvs.AWS:
-    #     default_cpu_bind = "mask_cpu:000000ffffff000000ffffff,000000ffffff000000ffffff,000000ffffff000000ffffff,000000ffffff000000ffffff,ffffff000000ffffff000000,ffffff000000ffffff000000,ffffff000000ffffff000000,ffffff000000ffffff000000"
-    # elif env == ComputeEnvs.FAIR:
-    #     default_cpu_bind = "map_ldom:0,0,0,0,1,1,1,1"
-
     default_local_checkpoints_dir = None
-    if env == ComputeEnvs.AZURE:
-        azure_upload_path = os.environ.get("AZURE_BLOB_SAS_URL", "")
-        if azure_upload_path != "":
-            # write checkpoints to local scratch storage on each node
-            default_local_checkpoints_dir = os.path.join(
-                "/mnt/scratch",
-                os.environ["USER"],
-                "checkpoints",
-                str(datetime.date.today()),
-            )
-
-            # then copy them to Azure blob storage
-            o = urlparse(azure_upload_path)
-            o = o._replace(
-                path=os.path.join(
-                    o.path, os.environ["USER"], str(datetime.date.today())
-                )
-            )
-            azure_upload_path = o.geturl()
-
-            # set upload path if not specified
-            if args.full_azure_upload_path is None:
-                args.full_azure_upload_path = azure_upload_path
-
-            # if needed, create a container for this user on the Azure blob account
-            cmd = [
-                "/shared/home/myleott/bin/azcopy",  # TODO(susan): Make this myle agnostic, lol.
-                "make",
-                o._replace(path=os.path.dirname(o.path)).geturl(),
-            ]
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
+   
     # assign default slurm partition
     if args.partition is None:
         args.partition = default_partition
 
-    if args.comment is None:
-        args.comment = "ICML deadline 1/26"
-
-        
     # assign default checkpoint directory
     if args.checkpoints_dir is None:
         args.checkpoints_dir = default_checkpoint_dir

@@ -178,15 +178,8 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
             raise ImportError("Please install tokenizers with: pip install tokenizers")
 
         self.tokenizer = ByteLevelBPETokenizer.from_file(
-            # "/gscratch/zlab/sg01/opt/vocab/gpt2-vocab.json", "/gscratch/zlab/sg01/opt/vocab/gpt2-merges.txt"
             args.vocab_filename, args.merges_filename,
         )
-
-
-        # if max(args.update_freq) > 1:
-        #     raise NotImplementedError(
-        #         "--update-freq is not compatible with StreamingLanguageModelingTask"
-        #     )
 
         self.eod = self.tokenizer.token_to_id(args.end_of_document_symbol)
         if self.eod is None:
@@ -358,10 +351,7 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
             shards[int(shard_id)] = shard_id
         assert min(shards.keys()) == 0
         assert max(shards.keys()) == len(shards) - 1
-        print('len shards', len(shards))
         cur_shard_str = shards[(epoch - 1) % len(shards)]
-        print('epoch', epoch)
-        print('cur_shard_str', cur_shard_str)
         return cur_shard_str
 
     def load_dataset(self, split: str, epoch=1, combine=False, **kwargs):
@@ -584,11 +574,6 @@ class StreamingLanguageModelingTask(LegacyFairseqTask):
         assert isinstance(dataset, StreamingTokenBlockDataset) or isinstance(
             dataset, StreamingSrcTgtDataset
         )
-
-
-        # shuffle_buffer_size = 10 * max_sentences * num_shards
-        # logger.info(f"setting shuffle buffer size to {shuffle_buffer_size}")
-        # dataset.set_shuffle_buffer_size(shuffle_buffer_size)
 
         # partition dataset across data parallel workers
         dataset = PartitionedStreamingDataset(

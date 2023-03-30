@@ -489,7 +489,6 @@ class Trainer(object):
         reset_lr_scheduler=False,
         optimizer_overrides=None,
         reset_meters=False,
-        fast_forward=None
     ):
         """
         Load all training state from a checkpoint file.
@@ -518,7 +517,6 @@ class Trainer(object):
                     filename,
                     load_on_all_ranks=load_on_all_ranks,
                     is_moe=self.is_moe or self.is_base_moe,
-                    fast_forward=fast_forward
                 )
                 last_optim_state = state.get("last_optimizer_state", None)
                 if last_optim_state == -1:

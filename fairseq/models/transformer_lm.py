@@ -215,6 +215,12 @@ class TransformerLanguageModelConfig(FairseqDataclass):
             "help": "OPT weights path from which we nitialize MOE weights"
         }
     )
+    moe_path_to_expert_state_dict: str = field(
+        default="",
+        metadata={
+            "help": "Path to expert state dict used when we nitialize MOE weights"
+        }
+    )
 
     moe_second_expert_policy: str = field(
         default='sampling',

@@ -188,22 +188,7 @@ def gen_train_command(
             f"{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}",
         )
         train_cmd.extend(["--save-dir", local_save_dir])
-    if getattr(args, "full_azure_upload_path", None) is not None:
-        if args.azure_folder_auto_name:
-            from urllib.parse import urlparse
 
-            o = urlparse(args.full_azure_upload_path)
-            o = o._replace(
-                path=os.path.join(
-                    o.path, f"{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}"
-                )
-                + "/"
-            )
-            train_cmd.extend(["--save-async", "--cloud-upload-path", o.geturl()])
-        else:
-            train_cmd.extend(
-                ["--save-async", "--cloud-upload-path", args.full_azure_upload_path]
-            )
 
     if not args.no_wandb:
         try:
@@ -285,19 +270,6 @@ def gen_srun_command_and_str(
         ]
         base_srun_cmd += ["-x", excluded_hosts] if excluded_hosts is not None else []
         base_srun_cmd += ["-w", included_hosts] if included_hosts is not None else []
-    if args.container_image is not None:
-        # e.g., --container-image=nvcr.io/nvidia/pytorch:21.03-py3
-        base_srun_cmd += ["--container-image", args.container_image]
-        # hardcoded for Azure
-        base_srun_cmd += [
-            "--container-mounts",
-            f"/nfs2:/nfs2,/mnt:/mnt,/sys:/sys,/usr/local/bin:/usr/local/bin,{os.getcwd()}:/workspace",
-        ]
-        assert (
-            not args.snapshot_code
-        ), "--snapshot-code is not supported on Azure when using containers"
-        if args.container_save is not None:
-            base_srun_cmd += ["--container-save", args.container_save]
 
     srun_cmd = base_srun_cmd + train_cmd
     srun_cmd_str = " ".join(map(shlex.quote, srun_cmd))
@@ -341,13 +313,10 @@ def gen_sbatch_command_and_str(
         args.cpus_per_task,
         "--output",
         train_log,
-        # "--account",
-        # "zlab", # TODO(margaret): change this
         "--error",
         train_stderr,
         "--open-mode",
         "append",
-        # '--no-requeue',
         "--signal",
         "B:USR1@180",
     ]
@@ -356,7 +325,8 @@ def gen_sbatch_command_and_str(
 
     if args.constraint:
         sbatch_cmd += ["--constraint", args.constraint]
-
+    if args.account:
+        sbatch_cmd += ["--account", args.account]
     if args.partition:
         sbatch_cmd += ["--partition", args.partition]
     if args.reservation:
@@ -386,8 +356,6 @@ def gen_sbatch_command_and_str(
     sbatch_cmd += ["-w", included_hosts] if included_hosts is not None else []
 
     wrapped_cmd = requeue_support()
-    if args.azure:
-        wrapped_cmd += "\n" + azure_support()
     wrapped_cmd += "\n" + srun_cmd_str
     if array_length is None:
         wrapped_cmd = wrapped_cmd + " \n wait $! \n sleep 610 & \n wait $!"
@@ -395,7 +363,6 @@ def gen_sbatch_command_and_str(
     sbatch_cmd += ["--wrap", wrapped_cmd]
     sbatch_cmd_str = " ".join(map(shlex.quote, sbatch_cmd))
     return sbatch_cmd, sbatch_cmd_str
-
 
 def local_run(args, env, train_cmd, post_cmds, dry_run):
     assert args.num_nodes == 1, "distributed training cannot be combined with --local"
@@ -410,7 +377,6 @@ def local_run(args, env, train_cmd, post_cmds, dry_run):
             post_cmd_proc = subprocess.Popen(post_cmd, shell=True, env=env)
             post_cmd_proc.wait()
 
-
 def run_batch(env, sbatch_cmd_str, sbatch_cmd):
     print(f"running command: {sbatch_cmd_str}\n")
     with subprocess.Popen(sbatch_cmd, stdout=subprocess.PIPE, env=env) as train_proc:
@@ -422,7 +388,6 @@ def run_batch(env, sbatch_cmd_str, sbatch_cmd):
             job_id = None
     return job_id, stdout
 
-
 def write_git_commit(args, train_log):
     with open(train_log, "a") as train_log_h:
         # log most recent git commit
@@ -430,33 +395,6 @@ def write_git_commit(args, train_log):
             "git log | head -n 1", shell=True, encoding="utf-8"
         )
         print(git_commit.rstrip(), file=train_log_h)
-
-
-def klist(train_log):
-    with open(train_log, "a") as train_log_h:
-        try:
-            # Commands taken from https://www.internalfb.com/intern/wiki/FAIR/Platforms/Clusters/AI_Research_Supercluster_(RSC)/User_Docs/AI_RSC_-_TIPS_&_TRICKS/#you-can-use-the-auks-cli
-            auks_output = subprocess.check_output(
-                "auks -g -C ./testcache", shell=True, encoding="utf-8"
-            )
-            print(auks_output.rstrip(), file=train_log_h)
-            klist_output = subprocess.check_output(
-                "KRB5CCNAME=./testcache klist", shell=True, encoding="utf-8"
-            )
-            print(klist_output.rstrip(), file=train_log_h)
-            train_dir = "/".join(train_log.split("/")[:-1]) + "/"
-            mv_output = subprocess.check_output(
-                f"mv testcache {train_dir}", shell=True, encoding="utf-8"
-            )
-            print(mv_output.rstrip(), file=train_log_h)
-        except subprocess.CalledProcessError as e:
-            print(
-                "command '{}' return with error (code {}): {}".format(
-                    e.cmd, e.returncode, e.output
-                ),
-                file=train_log_h,
-            )
-
 
 def dry_run_batch(env, train_log, train_stderr, sbatch_cmd_str, sbatch_cmd, dry_run):
     dry_run("start remote training")
@@ -473,8 +411,6 @@ def batch(iterable, n=1):
     for ndx in range(0, l, n):
         yield iterable[ndx:min(ndx + n, l)]
 
-
-
 def launch_train(args, grid, grid_product, dry_run, postprocess_hyperparams):
     oss_destination = ""
     internal_destination = ""
@@ -488,7 +424,6 @@ def launch_train(args, grid, grid_product, dry_run, postprocess_hyperparams):
             code_snapshot_hash,
             args.snapshot_recurse_dirs_internal,
         )
-        # Need to copy MetaSeq OSS code as well
         metaseq_oss_path = str(Path(fairseq.__file__).parents[1])
         oss_destination = copy_all_python_files(
             metaseq_oss_path,
@@ -564,51 +499,7 @@ def launch_train(args, grid, grid_product, dry_run, postprocess_hyperparams):
                 dry_run(f"post steps command: {post_cmd}")
         if args.local:
             local_run(args, env, train_cmd, post_cmds, dry_run)
-        # launch each job individually
-        # if not args.use_jobarray:
-        #     job_id = None
-        #     if args.dry_run:
-        #         train_cmd_str = " ".join(train_cmd)
-        #         dry_run(f"train command: {train_cmd_str}")
-        #         for post_cmd in post_cmds:
-        #             dry_run(f"post steps command: {post_cmd}")
-        #     if args.local:
-        #         local_run(args, env, train_cmd, post_cmds, dry_run)
-        #     else:
-        #         srun_cmd_str = srun_cmd_str + " &"
-        #         # build command
-        #         if not args.salloc:
-        #             job_name = f"{args.prefix}.{save_dir_key}"
-        #             sbatch_cmd, sbatch_cmd_str = gen_sbatch_command_and_str(
-        #                 args,
-        #                 job_name,
-        #                 train_log,
-        #                 train_stderr,
-        #                 destination,
-        #                 srun_cmd_str,
-        #             )
-        #         else:
-        #             sbatch_cmd = srun_cmd
-        #             sbatch_cmd_str = srun_cmd_str
-        #         if args.dry_run:
-        #             dry_run_batch(
-        #                 env,
-        #                 train_log,
-        #                 train_stderr,
-        #                 sbatch_cmd_str,
-        #                 sbatch_cmd,
-        #                 dry_run,
-        #             )
-        #         else:
-        #             write_git_commit(args, train_log)
-        #             with open(train_log, "a") as train_log_h:
-        #                 job_id, stdout = run_batch(env, sbatch_cmd_str, sbatch_cmd)
-        #                 print(stdout, file=train_log_h)
-        #     if job_id is not None:
-        #         print("Launched {}".format(job_id))
-        #     if args.sequential and not args.local and job_id is not None:
-        #         args.dep = job_id
-        # else:
+
         train_log_list.append(train_log)
         srun_cmd_str_list.append(srun_cmd_str)
 
@@ -650,51 +541,7 @@ def launch_train(args, grid, grid_product, dry_run, postprocess_hyperparams):
                 )
             else:
                 job_id, stdout = run_batch(env, sbatch_cmd_str, sbatch_cmd)
-                # for train_log in x[1]:
-                #     with open(train_log, "a") as train_log_h:
-                #         print(stdout, file=train_log_h)
 
-
-        # job_id = None
-        # if args.dry_run:
-        #     train_cmd_str = " ".join(train_cmd)
-        #     dry_run(f"train command: {train_cmd_str}")
-        #     for post_cmd in post_cmds:
-        #         dry_run(f"post steps command: {post_cmd}")
-        # if args.local:
-        #     local_run(args, env, train_cmd, post_cmds, dry_run)
-        # else:
-        #     srun_cmd_str = srun_cmd_str + " &"
-        #     # build command
-        #     if not args.salloc:
-        #         job_name = f"{args.prefix}.{save_dir_key}"
-        #         sbatch_cmd, sbatch_cmd_str = gen_sbatch_command_and_str(
-        #             args,
-        #             job_name,
-        #             train_log,
-        #             train_stderr,
-        #             oss_destination,
-        #             internal_destination,
-        #             srun_cmd_str,
-        #         )
-        #     else:
-        #         sbatch_cmd = srun_cmd
-        #         sbatch_cmd_str = srun_cmd_str
-        #     if args.dry_run:
-        #         dry_run_batch(
-        #             env, train_log, train_stderr, sbatch_cmd_str, sbatch_cmd, dry_run
-        #         )
-        #     else:
-        #         write_git_commit(args, train_log)
-        #         if args.rsc:
-        #             klist(train_log)
-        #         with open(train_log, "a") as train_log_h:
-        #             job_id, stdout = run_batch(env, sbatch_cmd_str, sbatch_cmd)
-        #             print(stdout, file=train_log_h)
-        # if job_id is not None:
-        #     print("Launched {}".format(job_id))
-        # if args.sequential and not args.local and job_id is not None:
-        #     args.dep = job_id
 
 
 def has_finished(save_dir):
@@ -761,22 +608,4 @@ def requeue_support():
         trap 'trap_handler USR1' USR1
         trap 'trap_handler TERM' TERM
     """
-    )
-
-
-def azure_support():
-    return textwrap.dedent(
-        """
-        export NCCL_TOPO_FILE=/opt/microsoft/ndv4-topo.xml
-        export NCCL_IB_PCI_RELAXED_ORDERING=1
-        export UCX_IB_PCI_RELAXED_ORDERING=on
-        export NCCL_SOCKET_IFNAME=eth0
-        export UCX_NET_DEVICES=eth0
-        export CUDA_DEVICE_ORDER=PCI_BUS_ID
-        export OMPI_MCA_COLL_HCOLL_ENABLE=0
-        if [ -e "/etc/profile.d/modules.sh" ]; then
-            . /etc/profile.d/modules.sh
-            module load mpi/hpcx
-        fi
-        """
     )

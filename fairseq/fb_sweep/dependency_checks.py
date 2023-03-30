@@ -5,17 +5,12 @@ import subprocess
 
 PIP_MSG = "Missing required package: pip install azure-storage-blob timeout-decorator more_itertools tokenizers"
 
-on_aws = os.path.exists("/fsx")
-on_faircluster = os.path.exists("/checkpoints")
-on_azure = os.path.exists("/sched/cyclecloud.conf")
 INSTRUCTIONS = []
 try:
     import more_itertools
     import timeout_decorator
     import tokenizers
 
-    if on_azure:
-        from azure.storage.blob import BlobServiceClient
 except ImportError:
     INSTRUCTIONS.append(PIP_MSG)
 
@@ -41,15 +36,6 @@ except ImportError:
     )
 
 
-if on_azure and not os.environ.get("AZURE_BLOB_SAS_URL", "").startswith(
-    "https://fairacceleastus.blob.core.windows.net/"
-):
-    # We require checkpoints to be written to blob storage in the East US region. Please update your env variable to
-    INSTRUCTIONS.append(
-        """
-        export AZURE_BLOB_SAS_URL="https://fairacceleastus.blob.core.windows.net/?sv=2020-08-04&ss=b&srt=sco&sp=rwdlactfx&se=2023-10-06T11:23:33Z&st=2021-10-06T03:23:33Z&spr=https&sig=s6aw4Ca4Ohbr7LQ%2BG9s58PEyYJsbXHjs%2Fc%2BuoTvzTUo%3D"
-        """
-    )
 
 
 ### Make sure correct tag/branch is used. Following consts define these expectations.

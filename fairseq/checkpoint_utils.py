@@ -242,8 +242,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
         reset_optimizer,
         reset_lr_scheduler,
         optimizer_overrides,
-        reset_meters=reset_meters,
-        fast_forward=cfg.fast_forward
+        reset_meters=reset_meters
     )
 
     if (
@@ -273,7 +272,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     return extra_state, epoch_itr
 
 
-def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False, moe_initialize_from_opt=None, fast_forward=None):
+def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is_moe=False):
     """Loads a checkpoint to CPU (with upgrading for backward compatibility).
 
     If doing single-GPU training or if the checkpoint is only being loaded by at
@@ -311,19 +310,6 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False, is
     if is_moe and os.path.exists(shared_path):
         expert_state = moe_checkpoint_utils.load_expert_state(local_path)  # Possibly merge experts
         shared_state = torch_load_cpu(shared_path)
-        
-
-        # if moe_initialize_from_opt:
-        #     # initialize MoE with OPT weights
-        #     logging.info("initializing moe with OPT model...")
-        #     opt_state = torch.load('/gscratch/zlab/sg01/opt/1.3b/consolidated.pt')
-        #     for key in shared_state['model']:                                                                                                                                            
-        #         if opt_state['model'].get(key) is not None:
-        #             shared_state['model'][key] = opt_state['model'][key]
-        #     for key in expert_state['model']:
-        #         new_key = re.sub(f"moe_layer.experts.\d+.", '', key)
-        #         if opt_state['model'].get(new_key) is not None:
-        #             expert_state['model'][key] = opt_state['model'][new_key]
         state = moe_checkpoint_utils.merge_expert_and_shared_state(expert_state, shared_state)
     else:
         state = torch_load_cpu(local_path)
@@ -364,7 +350,6 @@ def load_model_ensemble(
     num_shards=1,
     state=None,
     is_moe=False,
-    fast_forward=None,
 ):
     """Loads an ensemble of models.
 
@@ -386,7 +371,6 @@ def load_model_ensemble(
         num_shards,
         state,
         is_moe=is_moe,
-        fast_forward=fast_forward
     )
     return ensemble, args
 
@@ -445,7 +429,6 @@ def load_model_ensemble_and_task(
     num_shards=1,
     state=None,
     is_moe=False,
-    fast_forward=None
 ):
     logger.info("load_model_ensemble_and_task is_moe={}".format(is_moe))
     assert state is None or len(filenames) == 1
@@ -470,7 +453,7 @@ def load_model_ensemble_and_task(
             if not PathManager.exists(filename):
                 raise IOError("Model file not found: {}".format(filename))
             if state is None:
-                state = load_checkpoint_to_cpu(filename, arg_overrides, is_moe=is_moe, fast_forward=fast_forward)
+                state = load_checkpoint_to_cpu(filename, arg_overrides, is_moe=is_moe)
             if "args" in state and state["args"] is not None:
                 cfg = convert_namespace_to_omegaconf(state["args"])
             elif "cfg" in state and state["cfg"] is not None:

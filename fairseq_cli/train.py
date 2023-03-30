@@ -68,11 +68,10 @@ def main(cfg: FairseqConfig) -> None:
     np.random.seed(cfg.common.seed)
     utils.set_torch_seed(cfg.common.seed)
 
-    if cfg.model.moe_initialize_from_opt:
+    if cfg.model.moe_initialize_from_opt and cfg.model.moe_initialize_from_opt != "None":
         from fairseq.moe_checkpoint_utils import initialize_moe_from_opt
         # initialize with OPT checkpoint
-        initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count // torch.distributed.get_world_size(), torch.distributed.get_world_size(), cfg.model.moe_initialize_from_opt)
-        # initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count)
+        initialize_moe_from_opt(cfg.checkpoint.save_dir, cfg.model.moe_expert_count // torch.distributed.get_world_size(), torch.distributed.get_world_size(), cfg.model.moe_initialize_from_opt, cfg.model.moe_path_to_expert_state_dict)
 
 
     checkpoint_utils.verify_checkpoint_directory(cfg.checkpoint.save_dir)
@@ -201,8 +200,6 @@ def main(cfg: FairseqConfig) -> None:
 
         # only use first validation loss to update the learning rate
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
-        # TODO @margaretli
-        print('task.has_sharded_data("train")', task.has_sharded_data("train"))
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
@@ -270,29 +267,8 @@ def train(
     itr = iterators.StreamingGroupedIterator(
                     itr,
                     update_freq,
-                    # skip_remainder_batch=False,
                     skip_remainder_batch=True,
     )
-
-
-    # if update_freq > 1:
-    #     if isinstance(task, StreamLanguageModelingTask) or isinstance(
-    #             task, StreamingFinetuneLanguageModelingTask
-    #         ):
-    #             itr = iterators.StreamingGroupedIterator(
-    #                 itr,
-    #                 update_freq,
-    #                 skip_remainder_batch=False,
-    #             )
-    #     else:
-    #         itr = iterators.GroupedIterator(
-    #             itr,
-    #             update_freq,
-    #             skip_remainder_batch=(
-    #                 not cfg.optimization.train_with_epoch_remainder_batch
-    #             ),
-    #         )
-
 
     if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)
@@ -569,10 +545,6 @@ def cli_main(
                 distributed_utils.call_main(cfg, main)
     else:
         distributed_utils.call_main(cfg, main)
-
-    # if cfg.common.use_plasma_view:
-    #     server.server.kill()
-
 
 if __name__ == "__main__":
     cli_main()

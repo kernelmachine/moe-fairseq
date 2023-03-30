@@ -12,10 +12,8 @@ import os
 from typing import Any, Dict, List
 
 import torch
-from tqdm import trange
 from fairseq.data import (
     JsonlDataset,
-    StreamingShuffleDataset,
     StreamingTokenBlockDataset,
     data_utils,
 )
@@ -25,7 +23,6 @@ from fairseq.tasks.streaming_language_modeling import (
 )
 from fairseq.tasks import register_task
 from tqdm.auto import tqdm
-import json
 import pickle
 
 logger = logging.getLogger(__name__)
@@ -43,9 +40,6 @@ class StreamingFinetuneLanguageModelingTask(StreamingLanguageModelingTask):
         full_tokens = torch.LongTensor(
             self.tokenizer.encode(src).ids + [self.eod]
         )
-        # src_tokens_len = len(self.tokenizer.encode(src).ids)
-        # tgt_tokens = torch.clone(full_tokens)
-        # tgt_tokens[:src_tokens_len] = self.dictionary.pad_index
         return full_tokens
     
 
@@ -82,19 +76,6 @@ class StreamingFinetuneLanguageModelingTask(StreamingLanguageModelingTask):
 
         # concatenate any jsonl files that are part of the shard
         datasets, corpora = [], []
-        # if 'train' in split and self.args.path_to_clusters is not None:
-        #     clusters = {}
-        #     with open(self.args.path_to_clusters, 'r') as f:
-        #         for line in tqdm(f):
-        #             l = json.loads(line)
-        #             clusters[l['sp_id']] = l['cluster']
-        # else:
-        #     clusters = None
-        #     self.clusters = pd.read_json(path_to_clusters, lines=True)
-        #     self.clusters = dict(zip(self.clusters.sp_id, self.clusters.cluster))
-        # if self.args.path_to_clusterer is not None:
-        #     kmeans = load_model(self.args.path_to_clusterer + '/kmeans.pkl')
-        #     vectorizer = load_model(self.args.path_to_clusterer + '/tfidf.pkl')
         for file in tqdm(sorted(
             os.listdir(os.path.join(self.args.data, split, cur_shard_str))
         )):
@@ -118,19 +99,9 @@ class StreamingFinetuneLanguageModelingTask(StreamingLanguageModelingTask):
             corpora.append(os.path.splitext(file)[0])
         assert len(datasets) > 0
 
-        print(len(datasets))
-        print(corpora[:10])
-
-        # if (
-        #     self.args.multicorpus_sampling_alpha != 1
-        #     or self.args.multicorpus_sampling_maximum > 0
-        # ):
-        #     datasets = self._alpha_sampling(datasets, corpora, epoch)
-
         dataset = torch.utils.data.ConcatDataset(datasets)
 
         # shuffle order across epochs
-        # dataset = StreamingShuffleDataset(dataset, seed=self.args.seed)
 
         self.datasets[split] = StreamingTokenBlockDataset(
             dataset,
@@ -157,11 +128,6 @@ class StreamingFinetuneLanguageModelingTask(StreamingLanguageModelingTask):
             pad_idx=self.source_dictionary.pad(),
             pad_to_bsz=self.args.batch_size,
         )
-        # tgt_tokens = data_utils.collate_tokens(
-        #     [x["tgt_block"] for x in items if x is not None],
-        #     pad_idx=self.source_dictionary.pad(),
-        #     pad_to_bsz=self.args.batch_size,
-        # )
 
         # generate inputs and targets
         input = src_tokens[:, :-1].contiguous()

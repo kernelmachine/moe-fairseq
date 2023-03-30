@@ -9,7 +9,8 @@ LEARNING_RATES = {
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--initialization", choices=['opt', 'random'])
+    parser.add_argument("--initialization", type=str)
+    parser.add_argument("--expert-state-dict", default="/checkpoint/margaretli/models/en_moe_lm_15b/model-rank-0.pt")
     parser.add_argument("--model-size", choices=['6.7b','1.3b', 'resharded_1.3b', '125m', '350m'])
     parser.add_argument("--run", choices=['slurm', 'local'])
     parser.add_argument("--data", choices=['imdb','c4', 'opt_data', 's2orc_data', 'pile_data_alt', 'flan_data', 'demix_data', 'stories', 'Wikipedia_en', 'DM_Mathematics', 'OpenWebText2', 'Gutenberg_PG-19', 'redditflattened', 'HackerNews', 'CommonCrawl', 'BookCorpusFair', 'Enron_Emails', 'ccnewsv2', 'USPTO', 'OpenSubtitles'])
@@ -35,6 +36,7 @@ if __name__ == '__main__':
     end_lr = 0.0
     command = f"bash /private/home/margaretli/gitfiles/moe-fairseq/scripts/train_moe.sh \
                 {args.initialization} \
+                {args.expert_state_dict} \
                 {args.lr} \
                 {args.num_nodes} \
                 {args.num_gpus} \
